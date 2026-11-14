@@ -25,10 +25,12 @@
   if (![0, 1, 2, 3].includes(P.rounds)) P.rounds = 3;
   // громкость: 0 — выкл, 1 — тихо, 2 — обычно (раньше был переключатель sound)
   if (![0, 1, 2].includes(P.vol)) P.vol = P.sound === false ? 0 : 2;
-  if (!langChosen) {
-    const q = new URLSearchParams(location.search).get('lang');
+  {
+    // язык: параметр адреса ?lang= сильнее сохранённого выбора, затем сам выбор, затем язык телефона
+    const q = (new URLSearchParams(location.search).get('lang') || '').toLowerCase().slice(0, 2);
     const ls = navigator.languages || [navigator.language || 'en'];
-    P.lang = q === 'ru' || q === 'en' ? q : (ls.some((l) => String(l).toLowerCase().startsWith('ru')) ? 'ru' : 'en');
+    if (q === 'ru' || q === 'en') P.lang = q;
+    else if (!langChosen) P.lang = ls.some((l) => String(l).toLowerCase().startsWith('ru')) ? 'ru' : 'en';
   }
   const saveP = () => {
     try {
@@ -176,6 +178,33 @@
       ['What you get', 'A reason to say out loud what usually goes unsaid, to hear others and to get to know each other better. The host sees which topics resonated.']
     ]
   });
+  // Правки по второму кругу теста
+  Object.assign(STR.ru, {
+    first_round: ', первая карточка', starts: 'бросила {n}',
+    all_hint: 'Каждая по кругу продолжает фразу, коротко. Начать может любая. Можно сказать «пас».',
+    fin_lead: 'Последний круг без кубика. Кто хочет, заканчивает фразу:',
+    focus: 'Отметки «Точно да»: ', six: 'Шестёрка — выбор темы', skip_hint: 'Коснись поля, чтобы пропустить',
+    confirm_skip: 'Пропустить ход: {n}?', confirm_rm: 'Убрать из игры: {n}? Сыгранные карточки останутся в итогах.',
+    code_btn_set: 'Задать код', code_btn_change: 'Сменить код', code_new_title: 'Новый код ведущей',
+    code_new_text: 'Введи новый код из 4 цифр или убери код совсем.', code_remove: 'Убрать код', code_saved: 'Код сохранён', code_removed: 'Код убран',
+    rounds_note: 'При одном круге и разогреве каждая получит только лёгкую карточку.',
+    file: 'Сохранить файлом', m_how: 'Как играть'
+  });
+  STR.ru.rules[1] = 'Цвет клетки — тема. На углах особые клетки, а шестёрка даёт выбрать тему самой.';
+  Object.assign(STR.en, {
+    first_round: ', first card', starts: '{n} rolled',
+    all_hint: 'Go round the circle: everyone finishes the sentence in a line or two. Anyone can start, and anyone can say ‘pass’.',
+    fin_lead: 'One last go without the dice. Anyone who wants to finishes the sentence:',
+    fin_phrase: '‘What I’m taking away today is…’',
+    focus: 'Marked ‘Very much’: ', six: 'A six — your choice', skip_hint: 'Tap the board to skip',
+    confirm_skip: 'Skip {n}’s turn?', confirm_rm: 'Remove {n} from the game? The cards already played stay in the summary.',
+    code_btn_set: 'Set a code', code_btn_change: 'Change code', code_new_title: 'New host code',
+    code_new_text: 'Enter a new 4-digit code, or remove the code.', code_remove: 'Remove code', code_saved: 'Code saved', code_removed: 'Code removed',
+    rounds_note: 'With one round and the warm-up on, everyone gets a light card only.',
+    file: 'Save as file', m_how: 'How to play'
+  });
+  STR.en.rules[1] = 'Each square’s colour is a topic. The corners are special, and a six lets you choose the topic.';
+  STR.en.intro[0][1] = 'A conversation game for a gathering: one phone, dice and cards that start a sentence.';
   const L = () => STR[P.lang] || STR.ru;
   const t = (k, vars) => {
     let s = L()[k]; if (s == null) s = STR.ru[k] || k;
@@ -200,10 +229,13 @@
   // Особые клетки на углах: «Вопрос всем» и «Выбор темы»
   const SPECIAL = { 5: 'all', 11: 'pick', 16: 'all' };
   const activeDecks = () => TOPICS.filter((d) => P.decks.includes(d)).concat('razo');
+  // 18 обычных клеток делятся поровну между включёнными темами (по три на тему, когда включены все шесть);
+  // разогрев живёт на «Старте», на клетках «Вопрос всем» и в первой карточке каждой
+  const NORMAL = CELLS.map((_, i) => i).filter((i) => i !== 0 && !SPECIAL[i]);
   const themeOf = (i) => {
     if (i === 0 || SPECIAL[i]) return 'razo';
-    const act = activeDecks();
-    return act[(i - 1) % act.length];
+    const tp = TOPICS.filter((d) => P.decks.includes(d));
+    return tp[NORMAL.indexOf(i) % tp.length];
   };
 
   // ---------- Telegram ----------
@@ -445,9 +477,12 @@
       li.innerHTML = `<span class="num">${i + 1}</span><span class="token-i" style="background:${p.color}"></span><span class="name"></span><button class="rm" aria-label="${t('remove')}">×</button>`;
       li.querySelector('.token-i').textContent = initial(p.name);
       li.querySelector('.name').textContent = p.name;
-      li.querySelector('.rm').onclick = () => {
+      li.querySelector('.rm').onclick = async () => {
         if (busy || Date.now() - lastRm < 450) return;
         lastRm = Date.now();
+        if (S.history.some((h) => h.pid === p.id) && !(await confirmAsk(t('confirm_rm', { n: p.name })))) return;
+        const i = S.players.indexOf(p);
+        if (i < 0) return;
         // очередь не должна сдвигаться: ходит та же участница, что и до удаления
         if (i < S.turn) S.turn--;
         S.players.splice(i, 1);
@@ -511,7 +546,9 @@
     });
     $('#warm').setAttribute('aria-checked', String(P.warm !== false));
     for (const b of $('#rounds-seg').children) b.setAttribute('aria-pressed', String(+b.dataset.r === P.rounds));
-    $('#host-code').value = P.code || '';
+    $('#code-btn').textContent = t(P.code ? 'code_btn_change' : 'code_btn_set');
+    $('#rounds-note').textContent = t('rounds_note');
+    $('#rounds-note').hidden = !(P.rounds === 1 && P.warm !== false);
   }
   $('#host-name').oninput = (e) => { P.host = e.target.value.trim().slice(0, 24); saveP(); applyBrand(); };
   $('#topics').onclick = (e) => {
@@ -530,11 +567,8 @@
     if (!b) return;
     P.rounds = +b.dataset.r; saveP(); renderSession();
   };
-  $('#host-code').oninput = (e) => {
-    const v = e.target.value.replace(/\D/g, '').slice(0, 4);
-    e.target.value = v;
-    if (v === '' || v.length === 4) { P.code = v; P.codeAsked = true; saveP(); }
-  };
+  // сменить или убрать код можно только зная текущий
+  $('#code-btn').onclick = () => { if (P.code) openCode('enter', () => openCode('change')); else openCode('change'); };
   function applyBrand() {
     const name = hostName();
     $('#brand').textContent = name || t('label_game');
@@ -546,11 +580,12 @@
   let codeMode = 'set', codeCb = null;
   function openCode(mode, cb) {
     codeMode = mode; codeCb = cb;
-    const set = mode === 'set';
-    $('#code-title').textContent = t(set ? 'code_set_title' : 'code_title');
-    $('#code-text').textContent = t(set ? 'code_set_text' : 'code_text');
-    $('#code-ok').textContent = t(set ? 'code_save' : 'code_open');
-    $('#code-alt').textContent = t(set ? 'code_skip' : 'code_forgot');
+    const K = { set: ['code_set_title', 'code_set_text', 'code_save', 'code_skip'], enter: ['code_title', 'code_text', 'code_open', 'code_forgot'],
+      change: ['code_new_title', 'code_new_text', 'code_save', 'code_remove'] }[mode];
+    $('#code-title').textContent = t(K[0]);
+    $('#code-text').textContent = t(K[1]);
+    $('#code-ok').textContent = t(K[2]);
+    $('#code-alt').textContent = t(K[3]);
     $('#code-in').value = '';
     layerAt = Date.now();
     $('#code-layer').hidden = false;
@@ -561,14 +596,16 @@
   $('#code-in').onkeydown = (e) => { if (e.key === 'Enter') $('#code-ok').click(); };
   $('#code-ok').onclick = () => {
     const v = $('#code-in').value;
-    if (codeMode === 'set') {
+    if (codeMode !== 'enter') {
       if (!/^\d{4}$/.test(v)) { toast(t('code_4')); return; }
       P.code = v; P.codeAsked = true; saveP(); renderSession();
+      if (codeMode === 'change') toast(t('code_saved'));
       closeCode(); codeCb && codeCb();
     } else if (v === P.code) { closeCode(); codeCb && codeCb(); }
     else { toast(t('code_wrong')); haptic('heavy'); $('#code-in').value = ''; }
   };
   $('#code-alt').onclick = async () => {
+    if (codeMode === 'change') { P.code = ''; P.codeAsked = true; saveP(); renderSession(); closeCode(); toast(t('code_removed')); return; }
     if (codeMode === 'set') { P.codeAsked = true; saveP(); closeCode(); codeCb && codeCb(); return; }
     if (!(await confirmAsk(t('forgot_confirm')))) return;
     P.code = ''; saveP();
@@ -696,6 +733,13 @@
   }
 
   let lastTurnId = null;
+  // волна по дорожке от клетки ходящей: поле «просыпается» к новому ходу
+  function wave() {
+    const me = current();
+    if (!me || P.fast || $('#s-game').hidden) return;
+    const from = S.pos[me.id] || 0;
+    for (let k = 0; k < N; k++) anim(cellEl((from + k) % N), [{ transform: 'scale(1)' }, { transform: 'scale(1.07)' }, { transform: 'scale(1)' }], { duration: 300, delay: k * 22 });
+  }
   function setHint(html, pop) {
     const h = $('#dice-hint');
     h.innerHTML = html;
@@ -714,11 +758,6 @@
     tn.classList.toggle('long', !!me && Array.from(me.name).length > 12);
     if (me && me.id !== lastTurnId) {
       anim(tn, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 340 });
-      // волна по дорожке от клетки ходящей: поле «просыпается» к новому ходу
-      if (!P.fast && lastTurnId !== null) {
-        const from = S.pos[me.id] || 0;
-        for (let k = 0; k < N; k++) anim(cellEl((from + k) % N), [{ transform: 'scale(1)' }, { transform: 'scale(1.07)' }, { transform: 'scale(1)' }], { duration: 300, delay: 250 + k * 22 });
-      }
     }
     lastTurnId = me ? me.id : null;
     $('#turn-label').textContent = turnLabel();
@@ -745,6 +784,8 @@
   const cube = $('#cube');
 
   async function roll() {
+    // экран передачи закрывается первым нажатием, в том числе с клавиатуры
+    if (!$('#handoff').hidden) { closeHandoff(); return; }
     if (busy || S.pending || S.finale || !S.players.length) return;
     busy = true;
     const scene = $('#dice-btn');
@@ -760,7 +801,8 @@
     const tm = tempo();
     skip = false; rollAt = Date.now();
     scene.classList.remove('wait'); scene.classList.add('busy');
-    setHint('');
+    // первые ходы партии подсказывают, что анимацию можно пропустить
+    setHint(!reduced && !P.fast && S.history.length < 3 ? `<span class="soft">${t('skip_hint')}</span>` : '');
     haptic('medium');
     if (!reduced) sfx.dice(P.fast ? 4 : 9);
     const v = 1 + Math.floor(Math.random() * 6);
@@ -768,7 +810,7 @@
     const [rx, ry] = FACE[v];
     cube.style.transitionDuration = reduced ? '1ms' : (tm.roll - 50) + 'ms';
     cube.style.transform = `rotateX(-18deg) rotateY(18deg) rotateX(${rx + spin * 360}deg) rotateY(${ry + spin * 360}deg)`;
-    if (!reduced) { scene.style.animationDuration = tm.roll + 'ms'; scene.classList.remove('roll'); void scene.offsetWidth; scene.classList.add('roll'); }
+    if (!reduced) { scene.style.animationDuration = tm.roll + 'ms'; scene.nextElementSibling.style.animationDuration = tm.roll + 'ms'; scene.classList.remove('roll'); void scene.offsetWidth; scene.classList.add('roll'); }
     await wait(tm.roll);
     scene.classList.remove('roll');
     if (skip) cube.style.transitionDuration = '1ms';
@@ -794,12 +836,15 @@
     squash(me.id);
 
     // Что выпало: первая карточка каждой — разогрев; на углах особые клетки
-    const first = P.warm !== false && !S.history.some((h) => h.pid === me.id);
+    // пас на первой карточке не считается: следующая снова будет из разогрева
+    const first = P.warm !== false && !S.history.some((h) => h.pid === me.id && !h.pass);
     const sp = SPECIAL[p];
     let theme = themeOf(p), mode = 'card', label = short(theme);
     if (first) { theme = 'razo'; label = short('razo') + t('first_round'); }
-    else if (sp === 'all') { theme = 'razo'; mode = 'all'; label = t('sp_all'); }
+    else if (sp === 'all' && S.players.length > 1) { theme = 'razo'; mode = 'all'; label = t('sp_all'); }
     else if (sp === 'pick') { mode = 'pick'; label = t('sp_pick'); }
+    // шестёрка даёт выбрать тему самой: у кубика появляется смысл кроме числа шагов
+    else if (v === 6 && !sp) { mode = 'pick'; label = t('six'); }
     const col = THEME_COLOR[theme];
     const land = cellEl(p);
     land.classList.add('land');
@@ -879,12 +924,13 @@
     const name = me ? me.name : '';
     $('#card-who').textContent = pd.all ? t('starts', { n: name }) : name;
     $('#card-hint').textContent = t(pd.all ? 'all_hint' : 'card_hint');
-    $('#scale-wrap').hidden = !!pd.all;
+    // на разогреве шкалы нет: эти отметки в итогах не учитываются
+    $('#scale-wrap').hidden = !!pd.all || pd.theme === 'razo';
     $('#btn-pass').hidden = !!pd.all;
     $('#btn-swap').disabled = (pd.swaps || 0) >= 2;
     // рубашка карточки — в цвете колоды, с её названием
     const back = flip.querySelector('.back');
-    back.style.background = col;
+    back.style.backgroundColor = col;
     back.style.color = fg;
     $('#back-mark').textContent = pd.all ? t('cell_all') : short(pd.theme);
     syncScale();
@@ -945,7 +991,7 @@
     sfx.pick();
     save(); syncScale();
   };
-  let closing = false, swapping = false;
+  let closing = false, swapping = false, lastPassed = false;
   $('#btn-swap').onclick = () => {
     const pd = S.pending;
     if (!pd || pd.pick || closing || swapping || (pd.swaps || 0) >= 2) return;
@@ -963,6 +1009,7 @@
     const pd = S.pending;
     if (!pd || pd.pick || closing || swapping) return;
     closing = true;
+    lastPassed = !!passed;
     const me = player(pd.pid);
     const name = me ? me.name : '';
     if (passed) {
@@ -995,11 +1042,19 @@
   $('#btn-pass').onclick = () => finishCard(true);
 
   // Переход хода и счёт кругов
+  // Круг закончен, когда ход был у каждой (сыгранный или пропущенный). Счёт идёт по числу ходов,
+  // а не по возврату к первой в списке, поэтому удаление участницы его не сбивает.
+  // Если играет одна участница, круг — это пять карточек.
+  let roundJustStarted = false;
   function advance() {
+    roundJustStarted = false;
     if (!S.players.length) return;
     S.turn = (S.turn + 1) % S.players.length;
-    if (S.turn === 0) {
+    S.tir = (S.tir || 0) + 1;
+    if (S.tir >= (S.players.length === 1 ? 5 : S.players.length)) {
+      S.tir = 0;
       S.round = (S.round || 1) + 1;
+      roundJustStarted = true;
       const lim = limit();
       if (lim && S.round > lim) S.finale = true;
     }
@@ -1010,8 +1065,9 @@
     renderTurn();
     const me = current();
     if (!me || S.players.length < 2) return;
-    if (reduced || P.fast) { if (S.players.length > 2) toast(t('pass', { n: me.name })); }
-    else handoff(me, S.turn === 0);
+    // после паса или пропуска — тихая подсказка вместо яркого экрана
+    if (reduced || P.fast || lastPassed) { toast(t('pass', { n: me.name })); wave(); }
+    else handoff(me, roundJustStarted);
   }
 
   // ---------- Финал ----------
@@ -1038,11 +1094,14 @@
     $('#fin-count').textContent = t('fin_count', { c: cards.length, t: topics });
   }
   $('#fin-more').onclick = () => {
-    if (P.rounds) S.extra = Math.max((S.extra || 0) + 1, S.round - P.rounds);
+    // круг добавляется только если финал наступил сам; после ручного «Завершить игру» игра просто продолжается
+    const lim = limit();
+    if (lim && S.round > lim) S.extra = S.round - P.rounds;
     S.finale = false; save();
     openGame(false);
   };
   $('#fin-sum').onclick = requestSummary;
+  $('#fin-new').onclick = () => { if (P.code) openCode('enter', newGame); else newGame(); };
 
   // ---------- Меню ----------
   let layerAt = 0;
@@ -1055,10 +1114,15 @@
     const a = act ? act.dataset.act : 'close';
     if (a === 'summary') requestSummary();
     else if (a === 'finish') openFinale();
-    else if (a === 'skip') { if (!busy && !S.pending) { advance(); save(); afterTurn(); } }
+    else if (a === 'skip') {
+      const me = current();
+      if (!busy && !S.pending && me && (await confirmAsk(t('confirm_skip', { n: me.name })))) { lastPassed = true; advance(); save(); afterTurn(); }
+    }
+    else if (a === 'how') openIntro();
     else if (a === 'players') { show('s-setup'); renderPlayers(); }
     else if (a === 'settings') openSettings();
-    else if (a === 'new') newGame();
+    // новая игра стирает итоги, поэтому при заданном коде спрашивает его
+    else if (a === 'new') { if (P.code) openCode('enter', newGame); else newGame(); }
   };
 
   function resetGame() {
@@ -1088,11 +1152,27 @@
     S.history.filter((h) => !ids.has(h.pid)).forEach((h) => { (map[h.pid] = map[h.pid] || { p: { name: h.name || '?', color: '#8A857E' }, items: [] }).items.push(h); });
     return Object.values(map);
   }
-  // Темы, где «Точно да» отмечено два раза и больше; не больше двух тем
+  // Темы с отметкой «Точно да» и сколько раз она стояла
   function focusThemes(items) {
     const c = {};
     items.filter((h) => !h.pass && !h.all && h.answer === 'yes' && h.theme !== 'razo').forEach((h) => { c[h.theme] = (c[h.theme] || 0) + 1; });
-    return Object.entries(c).filter((e) => e[1] >= 2).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([th]) => deck(th).title);
+    return Object.entries(c).sort((a, b) => b[1] - a[1]).map(([th, n]) => deck(th).title + (n > 1 ? ' ×' + n : ''));
+  }
+  function noteBtn(h) {
+    const nb = document.createElement('button');
+    nb.className = 'note-btn' + (h.note ? ' has' : '');
+    nb.textContent = h.note ? t('note') + h.note : t('add_note');
+    nb.onclick = () => {
+      const ta = document.createElement('textarea');
+      ta.className = 'note-in'; ta.rows = 2; ta.maxLength = 500;
+      ta.placeholder = t('note_ph'); ta.value = h.note || '';
+      ta.oninput = () => { h.note = ta.value; save(); };
+      // при потере фокуса меняется только это поле: соседняя кнопка остаётся на месте и ловит нажатие
+      ta.onblur = () => { h.note = (ta.value || '').trim(); save(); ta.replaceWith(noteBtn(h)); };
+      nb.replaceWith(ta);
+      ta.focus();
+    };
+    return nb;
   }
   function cardsN(n) {
     if (P.lang === 'en') return n === 1 ? '1 card' : n + ' cards';
@@ -1135,19 +1215,7 @@
           b.onclick = () => { h.answer = NEXT_MARK[h.answer || ''] || null; save(); haptic('select'); openSummary(true); };
           e.querySelector('.entry-top').appendChild(b);
         }
-        const nb = document.createElement('button');
-        nb.className = 'note-btn' + (h.note ? ' has' : '');
-        nb.textContent = h.note ? t('note') + h.note : t('add_note');
-        nb.onclick = () => {
-          const ta = document.createElement('textarea');
-          ta.className = 'note-in'; ta.rows = 2; ta.maxLength = 500;
-          ta.placeholder = t('note_ph'); ta.value = h.note || '';
-          ta.oninput = () => { h.note = ta.value; save(); };
-          ta.onblur = () => { h.note = (ta.value || '').trim(); save(); openSummary(true); };
-          nb.replaceWith(ta);
-          ta.focus();
-        };
-        e.appendChild(nb);
+        e.appendChild(noteBtn(h));
         d.appendChild(e);
       });
       box.appendChild(d);
@@ -1157,7 +1225,7 @@
     const en = P.lang === 'en';
     const date = new Date(S.startedAt || Date.now()).toLocaleDateString(en ? 'en-GB' : 'ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
     const q = en ? ['“', '”'] : ['«', '»'];
-    const lines = [t('sum_head', { d: date }), t('sum_count', { p: S.players.length, c: S.history.filter((h) => !h.pass).length }), ''];
+    const lines = [t('sum_head', { d: date }), t('sum_count', { p: grouped().filter((g) => g.items.length).length, c: S.history.filter((h) => !h.pass).length }), ''];
     grouped().forEach(({ p, items }) => {
       if (!items.length) return;
       lines.push(`— ${p.name}`);
@@ -1186,6 +1254,16 @@
     const ok = await copy(summaryText());
     haptic(ok ? 'ok' : 'heavy');
     toast(ok ? t('copied') : t('copy_fail'));
+  };
+  // Итоги файлом: остаются у ведущей и после новой игры
+  $('#btn-file').onclick = () => {
+    if (!S.history.length) { toast(t('nothing')); return; }
+    const name = 'igra-' + new Date(S.startedAt || Date.now()).toISOString().slice(0, 10) + '.txt';
+    const url = URL.createObjectURL(new Blob(['\ufeff' + summaryText()], { type: 'text/plain;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
   };
   $('#btn-back').onclick = () => { if (S.finale) openFinale(); else if (S.started && S.players.length) openGame(false); else { show('s-setup'); renderPlayers(); } };
   $('#btn-new').onclick = () => newGame();
@@ -1219,17 +1297,17 @@
     ['#sum-title', 'sum_title'], ['#btn-copy', 'copy'], ['#btn-new', 'newgame'], ['#btn-erase', 'erase'],
     ['#set-skin-l', 'set_skin'], ['#set-sound-l', 'set_sound'], ['#set-anim-l', 'set_anim'],
     ['#sound-seg [data-s="0"]', 'v0'], ['#sound-seg [data-s="1"]', 'v1'], ['#sound-seg [data-s="2"]', 'v2'],
-    ['#anim-seg [data-f="0"]', 'full'], ['#anim-seg [data-f="1"]', 'quick'], ['#set-done', 'ok'], ['#intro-replay', 'intro_replay']
+    ['#anim-seg [data-f="0"]', 'full'], ['#anim-seg [data-f="1"]', 'quick'], ['#set-done', 'ok'], ['#intro-replay', 'intro_replay'], ['[data-act=how]', 'm_how'], ['#btn-file', 'file'], ['#fin-new', 'newgame']
   ];
   const ARIA = [['#add-form button', 'add'], ['#btn-menu', 'a_menu'], ['#btn-back', 'a_back'], ['#dice-btn', 'a_dice'], ['#queue', 'a_queue'],
-    ['#btn-set', 'a_set'], ['#scale', 'scale_q'], ['#btn-lang', 'a_lang'], ['#card-lang', 'a_lang'], ['#warm', 'l_warm']];
+    ['#btn-set', 'a_set'], ['#scale', 'scale_q'], ['#btn-lang', 'a_lang'], ['#card-lang', 'a_lang'], ['#intro-lang', 'a_lang'], ['#warm', 'l_warm']];
   function applyLang() {
     document.documentElement.lang = P.lang;
     for (const [sel, k] of TEXTS) { const el = $(sel); if (el) el.textContent = t(k); }
     for (const [sel, k] of ARIA) { const el = $(sel); if (el) el.setAttribute('aria-label', t(k)); }
     $('#add-name').placeholder = t('ph_name');
     const other = P.lang === 'en' ? 'RU' : 'EN';
-    $('#btn-lang').textContent = other; $('#card-lang').textContent = other;
+    $('#btn-lang').textContent = other; $('#card-lang').textContent = other; $('#intro-lang').textContent = other;
     document.querySelectorAll('#rules li').forEach((li, i) => { li.textContent = L().rules[i] || ''; });
     applyBrand();
     paintBoard();
@@ -1250,6 +1328,7 @@
   const otherLang = () => (P.lang === 'en' ? 'ru' : 'en');
   $('#btn-lang').onclick = () => setLang(otherLang());
   $('#card-lang').onclick = () => setLang(otherLang());
+  $('#intro-lang').onclick = () => setLang(otherLang());
   function renderSkins() {
     const box = $('#skins');
     box.innerHTML = '';
@@ -1347,14 +1426,14 @@
     let x = innerWidth / 2, y = innerHeight / 2;
     if (tok) { const r = tok.getBoundingClientRect(); x = r.left + r.width / 2; y = r.top + r.height / 2; }
     anim(el, [{ clipPath: `circle(0px at ${x}px ${y}px)` }, { clipPath: `circle(150% at ${x}px ${y}px)` }], { duration: 560, easing: 'cubic-bezier(.77,0,.175,1)' });
-    clearTimeout(hoTimer); hoTimer = setTimeout(closeHandoff, 2200);
+    clearTimeout(hoTimer); hoTimer = setTimeout(closeHandoff, 1400);
   }
   function closeHandoff() {
     clearTimeout(hoTimer);
     const el = $('#handoff');
     if (el.hidden) return;
     const a = anim(el, [{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: 'ease' });
-    Promise.race([done(a), sleep(260)]).then(() => { el.hidden = true; });
+    Promise.race([done(a), sleep(260)]).then(() => { el.hidden = true; wave(); });
   }
   $('#handoff').onclick = closeHandoff;
 

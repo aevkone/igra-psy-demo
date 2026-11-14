@@ -12,19 +12,21 @@
   var d=document.documentElement,p={};
   try{p=JSON.parse(localStorage.getItem('yulia-igra-prefs')||'{}')}catch(e){}
   d.dataset.skin=p.skin||'terra';
-  var l=p.lang,q=(location.search.match(/[?&]lang=(ru|en)/)||[])[1];
-  if(l!=='ru'&&l!=='en'){
+  var l=p.lang,q=(location.search.match(/[?&]lang=(ru|en)/i)||[])[1];
+  if(q)l=q.toLowerCase();
+  else if(l!=='ru'&&l!=='en'){
     var ls=navigator.languages||[navigator.language||'en'],ru=false;
     for(var i=0;i<ls.length;i++)if(String(ls[i]).toLowerCase().indexOf('ru')===0)ru=true;
-    l=q||(ru?'ru':'en');
+    l=ru?'ru':'en';
   }
   d.lang=l;
+  if(l==='en')document.title='Getting to Know You';
   // Скрипт Telegram нужен только внутри Telegram: в обычном браузере страница его не ждёт
   if(/tgWebApp/.test(location.href)||window.TelegramWebviewProxy)
     document.write('<script src="https://telegram.org/js/telegram-web-app.js"><\/script>');
 })();
 </script>
-<link rel="stylesheet" href="style.css?v=41">
+<link rel="stylesheet" href="style.css?v=42">
 </head>
 <body>
 <div class="glow" id="glow-a" aria-hidden="true"></div>
@@ -60,8 +62,8 @@
           <label class="fld"><span id="l-host"></span><input id="host-name" maxlength="24" autocomplete="off"></label>
           <div class="fld"><span id="l-topics"></span><div class="chips" id="topics"></div></div>
           <div class="fld row"><span id="l-warm"></span><button class="switch" id="warm" role="switch"><i></i></button></div>
-          <div class="fld"><span id="l-rounds"></span><div class="seg" id="rounds-seg"><button data-r="1">1</button><button data-r="2">2</button><button data-r="3">3</button><button data-r="0">∞</button></div></div>
-          <label class="fld"><span id="l-code"></span><input id="host-code" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="····"></label>
+          <div class="fld"><span id="l-rounds"></span><div class="seg" id="rounds-seg"><button data-r="1">1</button><button data-r="2">2</button><button data-r="3">3</button><button data-r="0">∞</button></div><p class="fld-note" id="rounds-note" hidden></p></div>
+          <div class="fld row"><span id="l-code"></span><button type="button" class="pill ghost sm" id="code-btn"></button></div>
         </div>
       </details>
       <details class="rules" id="rules">
@@ -118,6 +120,7 @@
     <div id="summary" class="summary"></div>
     <div class="summary-actions">
       <button id="btn-copy" class="pill accent wide"></button>
+      <button id="btn-file" class="pill ghost wide"></button>
       <button id="btn-new" class="pill ghost wide"></button>
       <button id="btn-erase" class="link-btn"></button>
     </div>
@@ -135,6 +138,7 @@
       <div class="setup-actions">
         <button id="fin-more" class="pill accent wide"></button>
         <button id="fin-sum" class="pill ghost wide"></button>
+        <button id="fin-new" class="link-btn"></button>
       </div>
     </div>
   </section>
@@ -147,7 +151,6 @@
         <div class="card-head">
           <span class="chip" id="card-theme"></span>
           <span class="card-who" id="card-who"></span>
-          <button class="lang-mini" id="card-lang"></button>
         </div>
         <p class="phrase" id="card-phrase" tabindex="-1"></p>
         <p class="card-hint" id="card-hint"></p>
@@ -164,7 +167,7 @@
           <button class="pill ghost" id="btn-swap"></button>
           <button class="pill accent" id="btn-done"></button>
         </div>
-        <button class="link-btn dark" id="btn-pass"></button>
+        <div class="card-foot"><button class="link-btn dark" id="btn-pass"></button><button class="lang-mini" id="card-lang"></button></div>
       </div>
     </div>
   </div>
@@ -185,6 +188,7 @@
       <button class="sheet-item" data-act="skip"></button>
       <button class="sheet-item" data-act="players"></button>
       <button class="sheet-item" data-act="settings"></button>
+      <button class="sheet-item" data-act="how"></button>
       <button class="sheet-item danger" data-act="new"></button>
       <button class="sheet-item muted" data-act="close"></button>
     </div>
@@ -228,6 +232,7 @@
     <div class="intro-in">
       <div class="intro-top">
         <div class="intro-dots" id="intro-dots" aria-hidden="true"></div>
+        <button class="icon-btn txt" id="intro-lang"></button>
         <button class="link-btn intro-skip" id="intro-skip"></button>
       </div>
       <div class="intro-stage" id="intro-stage"></div>
@@ -237,8 +242,8 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 </div>
-<script defer src="cards.js?v=41"></script>
-<script defer src="cards.en.js?v=41"></script>
-<script defer src="app.js?v=41"></script>
+<script defer src="cards.js?v=42"></script>
+<script defer src="cards.en.js?v=42"></script>
+<script defer src="app.js?v=42"></script>
 </body>
 </html>
