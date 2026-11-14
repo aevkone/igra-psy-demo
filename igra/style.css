@@ -33,7 +33,7 @@ button{cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-se
 .push{margin-left:auto}
 .dot{display:inline-block;width:.24em;height:.24em;border-radius:50%;background:var(--accent);margin-left:.06em;vertical-align:baseline}
 .top-title{flex:1;text-align:center;font-weight:500;letter-spacing:-.02em}
-.icon-btn{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;fill:currentColor;flex:none}
+.icon-btn{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;fill:currentColor;flex:none}
 .icon-btn:active{background:var(--panel)}
 
 .label{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--gray-d)}
@@ -57,11 +57,11 @@ h1{font-size:34px;line-height:1.08;font-weight:500;letter-spacing:-.04em;margin:
 .players li{display:flex;align-items:center;gap:12px;height:52px;padding:0 8px 0 12px;border-radius:16px;background:var(--panel);animation:pop 320ms var(--ease)}
 .players .num{font-family:var(--mono);font-size:12px;color:var(--gray);width:18px}
 .players .name{flex:1;font-weight:500}
-.players .rm{width:40px;height:40px;border-radius:12px;color:var(--gray-d);font-size:20px}
+.players .rm{width:44px;height:44px;border-radius:12px;color:var(--gray-d);font-size:20px}
 .token-i{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:600;color:#0B0B0A;flex:none}
 .setup-actions{display:flex;flex-direction:column;gap:10px;margin-top:auto;padding-top:24px}
 .rules{margin-top:18px;padding:16px 18px;border-radius:18px;background:var(--panel);color:var(--gray-d);font-size:14px}
-.rules summary{color:var(--off);font-weight:500;cursor:pointer;list-style:none}
+.rules summary{color:var(--off);font-weight:500;cursor:pointer;list-style:none;padding:8px 0;margin:-8px 0}
 .rules summary::after{content:' +';color:var(--accent)}
 .rules[open] summary::after{content:' −'}
 .rules ol{margin:10px 0 0 18px;display:flex;flex-direction:column;gap:6px}
@@ -90,6 +90,8 @@ h1{font-size:34px;line-height:1.08;font-weight:500;letter-spacing:-.04em;margin:
 .token{position:absolute;left:0;top:0;width:24px;height:24px;margin:-12px 0 0 -12px;transition:transform 260ms var(--ease);z-index:3}
 .token b{position:relative;display:grid;place-items:center;width:100%;height:100%;border-radius:50%;font-size:11px;font-weight:600;color:#0B0B0A;box-shadow:0 0 0 2px var(--black),0 4px 10px rgba(0,0,0,.45);transition:transform 260ms var(--ease);animation:tokenIn 360ms var(--ease) backwards}
 .token.me{z-index:4}
+.token.sm b{transform:scale(.72)}
+.token.sm.me b{transform:scale(.9)}
 .token.me b{transform:scale(1.18)}
 .token.me::before{content:'';position:absolute;inset:-5px;border-radius:50%;box-shadow:0 0 0 2px var(--off);opacity:0;animation:halo 2.2s var(--ease) infinite}
 .ripple{position:absolute;left:0;top:0;border-radius:12px;pointer-events:none;z-index:2}
@@ -103,7 +105,7 @@ h1{font-size:34px;line-height:1.08;font-weight:500;letter-spacing:-.04em;margin:
 .hint.pop{animation:hintPop 360ms var(--ease)}
 .hint b{font-weight:500;color:var(--off)}
 .cube{width:100%;height:100%;position:relative;transform-style:preserve-3d;transform:rotateX(-22deg) rotateY(-30deg);transition:transform 1100ms cubic-bezier(.2,.75,.25,1)}
-.face{position:absolute;inset:0;border-radius:18px;background:#F6F4F1;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08),inset 0 -6px 14px rgba(0,0,0,.08);display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);padding:14px;backface-visibility:hidden}
+.face{position:absolute;inset:0;border-radius:18px;background:#F6F4F1;box-shadow:inset 0 0 0 1px rgba(0,0,0,.18),inset 0 -6px 14px rgba(0,0,0,.1);display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);padding:14px;backface-visibility:hidden}
 .face i{width:13px;height:13px;border-radius:50%;background:#121211;place-self:center}
 .f1 i{background:var(--accent);width:17px;height:17px}
 .f1{transform:translateZ(42px)}
@@ -224,5 +226,5 @@ h1{font-size:34px;line-height:1.08;font-weight:500;letter-spacing:-.04em;margin:
 @media (max-height:700px){.phrase{font-size:25px;margin-top:18px}.board{max-width:360px}}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:1ms!important;animation-delay:0ms!important;transition-duration:1ms!important}
-  .glow,.token.me::before{animation:none!important}
+  .glow,.token.me::before,.scene.wait .cube{animation:none!important}
 }

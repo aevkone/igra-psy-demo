@@ -47,7 +47,7 @@
       m_summary: 'Итоги игры', m_skip: 'Пропустить ход', m_players: 'Изменить участниц', m_settings: 'Настройки', m_new: 'Начать заново', m_close: 'Закрыть',
       sum_title: 'Итоги игры', copy: 'Скопировать итоги', newgame: 'Новая игра',
       empty: 'Пока ни одной карточки. Итоги появятся после первых ходов.',
-      max: 'Не больше 10 участниц', pass: 'Передай телефон: {n}',
+      max: 'Не больше 10 участниц', dup: 'Такое имя уже есть', pass: 'Передай телефон: {n}',
       confirm_new: 'Начать новую игру? Итоги этой игры удалятся с телефона. Скопируй их заранее, если нужны.',
       focus: 'Сильнее отозвалось: ', not_played: 'Ещё не ходила', cards_n: '{n} карт.', note: 'Заметка: ',
       sum_head: 'Итоги игры-знакомства, {d}', sum_count: 'Участниц: {p}, карточек: {c}',
@@ -72,7 +72,7 @@
       m_summary: 'Game summary', m_skip: 'Skip turn', m_players: 'Edit players', m_settings: 'Settings', m_new: 'Start over', m_close: 'Close',
       sum_title: 'Game summary', copy: 'Copy summary', newgame: 'New game',
       empty: 'No cards yet. The summary will appear after the first turns.',
-      max: 'No more than 10 players', pass: 'Pass the phone to {n}',
+      max: 'No more than 10 players', dup: 'That name is already taken', pass: 'Pass the phone to {n}',
       confirm_new: 'Start a new game? This game’s summary will be deleted from the phone. Copy it first if you need it.',
       focus: 'Resonated most: ', not_played: 'Hasn’t played yet', cards_n: '{n} cards', note: 'Note: ',
       sum_head: 'Get-to-know game summary, {d}', sum_count: 'Players: {p}, cards: {c}',
@@ -85,7 +85,7 @@
   const L = () => STR[P.lang] || STR.ru;
   const t = (k, vars) => {
     let s = L()[k]; if (s == null) s = STR.ru[k] || k;
-    if (vars) for (const v in vars) s = s.replace('{' + v + '}', vars[v]);
+    if (vars) for (const v in vars) s = s.replace('{' + v + '}', () => vars[v]);
     return s;
   };
   const short = (th) => L().short[th];
@@ -264,7 +264,8 @@
   }
 
   // ---------- Участницы ----------
-  const initial = (name) => (name.trim()[0] || '?').toUpperCase();
+  const initial = (name) => (Array.from(String(name || '').trim())[0] || '?').toLocaleUpperCase();
+  let lastRm = 0;
   function renderPlayers() {
     const ol = $('#players');
     ol.innerHTML = '';
@@ -274,9 +275,15 @@
       li.querySelector('.token-i').textContent = initial(p.name);
       li.querySelector('.name').textContent = p.name;
       li.querySelector('.rm').onclick = () => {
+        if (busy || Date.now() - lastRm < 450) return;
+        lastRm = Date.now();
+        // очередь не должна сдвигаться: ходит та же участница, что и до удаления
+        if (i < S.turn) S.turn--;
         S.players.splice(i, 1);
         delete S.pos[p.id];
+        if (S.pending && S.pending.pid === p.id) S.pending = null;
         if (S.turn >= S.players.length) S.turn = 0;
+        if (!S.players.length) S.started = false;
         save(); renderPlayers();
       };
       ol.appendChild(li);
@@ -290,6 +297,7 @@
     const name = inp.value.trim().replace(/\s+/g, ' ');
     if (!name) return;
     if (S.players.length >= 10) { toast(t('max')); return; }
+    if (S.players.some((p) => p.name.toLocaleLowerCase() === name.toLocaleLowerCase())) { toast(t('dup')); return; }
     const used = new Set(S.players.map((p) => p.color));
     const color = TOKEN_COLORS.find((c) => !used.has(c)) || TOKEN_COLORS[S.players.length % TOKEN_COLORS.length];
     const id = 'p' + (++S.uid);
@@ -302,8 +310,10 @@
   };
   $('#btn-start').onclick = () => {
     if (!S.players.length) return;
-    S.started = true; save();
-    audio();
+    S.started = true;
+    if (!S.startedAt) S.startedAt = Date.now();
+    save();
+    audio(); keepAwake();
     openGame(true);
   };
 
@@ -352,7 +362,7 @@
       ps.forEach((p, k) => {
         const n = ps.length;
         const ang = (k / n) * Math.PI * 2 - Math.PI / 2;
-        const rad = n > 1 ? Math.min(el.offsetWidth * 0.24, 6 + n * 2) : 0;
+        const rad = n > 1 ? Math.min(el.offsetWidth * (n > 4 ? 0.34 : 0.24), 6 + n * 2) : 0;
         let t = tokenEls[p.id];
         if (!t) {
           t = document.createElement('div');
@@ -360,7 +370,7 @@
           tokensLayer.appendChild(t);
           tokenEls[p.id] = t;
         }
-        t.className = 'token' + (me && p.id === me.id ? ' me' : '');
+        t.className = 'token' + (me && p.id === me.id ? ' me' : '') + (n > 4 ? ' sm' : '');
         t.firstChild.style.background = p.color;
         t.firstChild.textContent = initial(p.name);
         t.style.transform = `translate(${(cx + Math.cos(ang) * rad).toFixed(1)}px,${(cy + Math.sin(ang) * rad).toFixed(1)}px)`;
@@ -401,7 +411,7 @@
       q.appendChild(b);
     });
     const on = q.querySelector('.on');
-    on && on.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+    on && on.scrollIntoView({ inline: 'center', block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
   }
 
   let lastTurnId = null;
@@ -444,6 +454,10 @@
     if (busy || S.pending || !S.players.length) return;
     busy = true;
     const scene = $('#dice-btn');
+    try { await rollInner(scene); }
+    finally { scene.classList.remove('busy', 'roll'); board.classList.remove('focus'); busy = false; }
+  }
+  async function rollInner(scene) {
     scene.classList.remove('wait'); scene.classList.add('busy');
     setHint('');
     haptic('medium');
@@ -453,7 +467,7 @@
     const [rx, ry] = FACE[v];
     cube.style.transform = `rotateX(-18deg) rotateY(18deg) rotateX(${rx + spin * 360}deg) rotateY(${ry + spin * 360}deg)`;
     if (!reduced) { scene.classList.remove('roll'); void scene.offsetWidth; scene.classList.add('roll'); }
-    await sleep(reduced ? 50 : 1150);
+    await sleep(reduced ? 350 : 1150);
     scene.classList.remove('roll');
     haptic('light');
     setHint(`${t('rolled')} <b>${v}</b>`, true);
@@ -482,15 +496,12 @@
     burst(lr.left + lr.width / 2, lr.top + lr.height / 2, THEME_COLOR[theme]);
     sfx.land();
     haptic('medium');
-    await sleep(reduced ? 30 : 620);
+    await sleep(reduced ? 500 : 620);
 
     S.pending = { pid: me.id, theme, idx: draw(theme), answer: null, note: '' };
     save();
     await openCard(false, land);
     land.classList.remove('land');
-    board.classList.remove('focus');
-    scene.classList.remove('busy');
-    busy = false;
   }
   $('#dice-btn').onclick = roll;
   $('#dice-btn').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); roll(); } };
@@ -571,18 +582,20 @@
   };
   $('#card-note').oninput = (e) => { if (S.pending) { S.pending.note = e.target.value; save(); } };
   $('#btn-swap').onclick = () => {
-    if (!S.pending || closing) return;
+    if (!S.pending || closing || swapping) return;
+    swapping = true;
     S.pending.idx = draw(S.pending.theme);
     S.pending.answer = null;
+    S.pending.note = '';
     save();
     flip.classList.remove('open');
     sfx.card();
-    setTimeout(() => { if (!S.pending) return; fillCard(); fillPhrase(true, 260); flip.classList.add('open'); }, reduced ? 0 : 320);
+    setTimeout(() => { swapping = false; if (!S.pending) return; fillCard(); fillPhrase(true, 260); flip.classList.add('open'); }, reduced ? 0 : 420);
   };
-  let closing = false;
+  let closing = false, swapping = false;
   $('#btn-done').onclick = async () => {
     const pd = S.pending;
-    if (!pd || closing) return;
+    if (!pd || closing || swapping) return;
     closing = true;
     const me = S.players.find((x) => x.id === pd.pid);
     S.history.push({
@@ -590,6 +603,7 @@
       text: deck(pd.theme).cards[pd.idx], idx: pd.idx, answer: pd.answer, note: (pd.note || '').trim(), t: Date.now()
     });
     S.pending = null;
+    S.turn = (S.turn + 1) % S.players.length;
     save();
     sfx.next();
     const layer = $('#card-layer');
@@ -600,20 +614,23 @@
     flip.classList.remove('open', 'fresh');
     a && a.cancel(); b && b.cancel();
     closing = false;
-    nextTurn();
+    nextTurn(true);
   };
-  function nextTurn() {
-    S.turn = (S.turn + 1) % S.players.length;
+  function nextTurn(advanced) {
+    if (!S.players.length) return;
+    if (!advanced) S.turn = (S.turn + 1) % S.players.length;
     save(); renderTurn();
     const me = current();
     if (S.players.length > 1) toast(t('pass', { n: me.name }));
   }
 
   // ---------- Меню ----------
-  $('#btn-menu').onclick = () => { $('#menu-layer').hidden = false; };
+  let layerAt = 0;
+  $('#btn-menu').onclick = () => { if (busy) return; layerAt = Date.now(); $('#menu-layer').hidden = false; };
   $('#menu-layer').onclick = async (e) => {
     const act = e.target.closest('[data-act]');
     if (!act && e.target !== e.currentTarget) return;
+    if (Date.now() - layerAt < 350) return;
     $('#menu-layer').hidden = true;
     const a = act ? act.dataset.act : 'close';
     if (a === 'summary') openSummary();
@@ -651,6 +668,11 @@
     items.filter((h) => h.answer === 'yes' && h.theme !== 'razo').forEach((h) => { c[h.theme] = (c[h.theme] || 0) + 1; });
     return Object.entries(c).sort((a, b) => b[1] - a[1]).map(([th]) => deck(th).title);
   }
+  function cardsN(n) {
+    if (P.lang === 'en') return n === 1 ? '1 card' : n + ' cards';
+    const a = n % 10, b = n % 100;
+    return n + ' ' + (a === 1 && b !== 11 ? 'карточка' : a >= 2 && a <= 4 && (b < 12 || b > 14) ? 'карточки' : 'карточек');
+  }
   function openSummary() {
     show('s-summary');
     const box = $('#summary');
@@ -660,7 +682,7 @@
       const d = document.createElement('div');
       d.className = 'person';
       d.style.animationDelay = Math.min(gi, 8) * 55 + 'ms';
-      d.innerHTML = `<div class="person-head"><span class="token-i" style="background:${p.color}"></span><span class="name"></span><span class="cnt">${P.lang === 'en' && items.length === 1 ? '1 card' : t('cards_n', { n: items.length })}</span></div>`;
+      d.innerHTML = `<div class="person-head"><span class="token-i" style="background:${p.color}"></span><span class="name"></span><span class="cnt">${cardsN(items.length)}</span></div>`;
       d.querySelector('.token-i').textContent = initial(p.name);
       d.querySelector('.name').textContent = p.name;
       const f = focusThemes(items);
@@ -683,7 +705,7 @@
     });
   }
   function summaryText() {
-    const date = new Date().toLocaleDateString(P.lang === 'en' ? 'en-GB' : 'ru-RU');
+    const date = new Date(S.startedAt || Date.now()).toLocaleDateString(P.lang === 'en' ? 'en-GB' : 'ru-RU');
     const lines = [t('sum_head', { d: date }), t('sum_count', { p: S.players.length, c: S.history.length }), ''];
     grouped().forEach(({ p, items }) => {
       if (!items.length) return;
@@ -783,17 +805,25 @@
     if (S.pending && !$('#card-layer').hidden) fillCard();
     if (!$('#s-summary').hidden) openSummary();
   }
-  function openSettings() { $('#set-layer').hidden = false; }
+  function openSettings() { layerAt = Date.now(); $('#set-layer').hidden = false; }
   $('#btn-set').onclick = openSettings;
   $('#set-layer').onclick = (e) => {
     const lang = e.target.closest('[data-lang]'), sk = e.target.closest('.skin'), snd = e.target.closest('[data-s]');
     if (lang) { P.lang = lang.dataset.lang; saveP(); applyLang(); haptic('select'); }
     else if (sk) { P.skin = sk.dataset.skin; saveP(); applySkin(); haptic('select'); }
     else if (snd) { P.sound = snd.dataset.s === '1'; saveP(); applyLang(); if (P.sound) sfx.pick(); }
-    else if (e.target === e.currentTarget || e.target.closest('#set-done')) $('#set-layer').hidden = true;
+    else if ((e.target === e.currentTarget && Date.now() - layerAt > 350) || e.target.closest('#set-done')) $('#set-layer').hidden = true;
   };
 
   // ---------- Старт ----------
+  // Экран не гаснет, пока идёт игра
+  let wake = null;
+  async function keepAwake() {
+    try { if (navigator.wakeLock && !wake) { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); } } catch (e) {}
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.started) keepAwake(); });
+
   applySkin();
   applyLang();
+  if (S.started && S.players.length) { openGame(false); keepAwake(); }
 })();
