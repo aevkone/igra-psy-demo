@@ -328,6 +328,10 @@ button.badge::after{content:'';position:absolute;inset:-8px}
 .note-btn.has{color:var(--off)}
 .note-in{width:100%;margin-top:6px;border-radius:12px;background:var(--panel2);padding:10px 12px;font-size:16px;color:var(--off);box-shadow:inset 0 0 0 1px var(--line);resize:none}
 
+/* Безопасная зона сверху: вырез и статус-бар */
+.top{height:calc(60px + env(safe-area-inset-top,0px));padding-top:env(safe-area-inset-top,0px)}
+.finale{padding-top:calc(56px + env(safe-area-inset-top,0px))}
+
 /* Тост */
 .toast{max-width:calc(100vw - 32px);white-space:normal;text-align:center;border-radius:22px;cursor:pointer}
 .toast.on{pointer-events:auto}

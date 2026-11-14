@@ -23,6 +23,8 @@
   P.decks = P.decks.filter((d) => TOPICS.includes(d));
   if (!P.decks.length) P.decks = TOPICS.slice();
   if (![0, 1, 2, 3].includes(P.rounds)) P.rounds = 3;
+  // громкость: 0 — выкл, 1 — тихо, 2 — обычно (раньше был переключатель sound)
+  if (![0, 1, 2].includes(P.vol)) P.vol = P.sound === false ? 0 : 2;
   if (!langChosen) {
     const q = new URLSearchParams(location.search).get('lang');
     const ls = navigator.languages || [navigator.language || 'en'];
@@ -104,7 +106,7 @@
       code_save: 'Сохранить код', code_skip: 'Играть без кода', code_title: 'Код ведущей', code_text: 'Итоги открываются только по коду ведущей.',
       code_open: 'Открыть итоги', code_forgot: 'Забыла код', code_wrong: 'Код не подошёл', code_4: 'Нужны 4 цифры',
       forgot_confirm: 'Сбросить код можно только вместе с итогами этой игры. Стереть итоги и код?',
-      set_skin: 'Оформление', set_sound: 'Звук', on: 'Включён', off: 'Выключен', set_anim: 'Анимация', full: 'Полная', quick: 'Быстрая', ok: 'Готово',
+      set_skin: 'Оформление', set_sound: 'Звук', v0: 'Выкл', v1: 'Тихо', v2: 'Обычно', set_anim: 'Анимация', full: 'Полная', quick: 'Быстрая', ok: 'Готово',
       a_menu: 'Меню', a_back: 'Назад', a_dice: 'Бросить кубик', a_queue: 'Очередь ходов', a_set: 'Настройки', a_lang: 'Switch to English',
       short: { razo: 'Разогрев', otn: 'Отношения', den: 'Деньги', real: 'Работа', sem: 'Семья', telo: 'Тело', uver: 'Уверенность' },
       abbr: { razo: 'РАЗ', otn: 'ОТН', den: 'ДЕН', real: 'РАБ', sem: 'СЕМ', telo: 'ТЕЛ', uver: 'УВЕ' }
@@ -148,7 +150,7 @@
       code_save: 'Save code', code_skip: 'Play without a code', code_title: 'Host code', code_text: 'The summary opens with the host code only.',
       code_open: 'Open summary', code_forgot: 'Forgot the code', code_wrong: 'Wrong code', code_4: 'Enter 4 digits',
       forgot_confirm: 'The code can only be reset together with this game’s summary. Erase the summary and the code?',
-      set_skin: 'Theme', set_sound: 'Sound', on: 'On', off: 'Off', set_anim: 'Animation', full: 'Full', quick: 'Quick', ok: 'Done',
+      set_skin: 'Theme', set_sound: 'Sound', v0: 'Off', v1: 'Quiet', v2: 'Normal', set_anim: 'Animation', full: 'Full', quick: 'Quick', ok: 'Done',
       a_menu: 'Menu', a_back: 'Back', a_dice: 'Roll the dice', a_queue: 'Turn order', a_set: 'Settings', a_lang: 'Переключить на русский',
       short: { razo: 'Warm-up', otn: 'Relationships', den: 'Money', real: 'Work', sem: 'Family', telo: 'Body', uver: 'Confidence' },
       abbr: { razo: 'WRM', otn: 'REL', den: 'MON', real: 'WRK', sem: 'FAM', telo: 'BOD', uver: 'CNF' }
@@ -227,17 +229,29 @@
     skipWake = () => { clearTimeout(id); skipWake = null; r(); };
   }));
 
-  let ac = null;
+  // Все звуки идут через одну шину: громкость из настроек и ограничитель, чтобы сумма не клиппировала
+  let ac = null, bus = null;
   function audio() {
-    if (P.sound === false) return null;
+    if (!P.vol) return null;
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return null;
       ac = ac || new AC();
+      if (!bus) {
+        const lim = ac.createDynamicsCompressor();
+        lim.threshold.value = -8; lim.knee.value = 6; lim.ratio.value = 12; lim.attack.value = 0.003; lim.release.value = 0.3;
+        bus = ac.createGain();
+        bus.connect(lim).connect(ac.destination);
+      }
+      // ползунок громкости возводится в квадрат: так «тихо» слышится вдвое тише, а не чуть-чуть
+      const lin = P.vol === 1 ? 0.55 : 1;
+      bus.gain.value = lin * lin;
       if (ac.state !== 'running') ac.resume();
       return ac;
     } catch (e) { return null; }
   }
+  // небольшой разброс высоты и громкости, чтобы повторяющиеся звуки не звучали как пулемёт
+  const vary = (x, pct) => x * (1 + (Math.random() * 2 - 1) * pct);
   function tone(freq, dur, vol, when, type) {
     const a = audio(); if (!a) return;
     const at = a.currentTime + (when || 0);
@@ -246,7 +260,7 @@
     g.gain.setValueAtTime(0.0001, at);
     g.gain.exponentialRampToValueAtTime(vol, at + 0.012);
     g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-    o.connect(g).connect(a.destination);
+    o.connect(g).connect(bus);
     o.start(at); o.stop(at + dur + 0.03);
   }
   function noise(dur, vol, freq, when, sweepTo) {
@@ -263,15 +277,15 @@
     const g = a.createGain();
     g.gain.setValueAtTime(vol, at);
     g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-    src.connect(f).connect(g).connect(a.destination);
+    src.connect(f).connect(g).connect(bus);
     src.start(at); src.stop(at + dur + 0.02);
   }
   const sfx = {
     dice(n) { let at = 0; for (let i = 0; i < n; i++) { noise(0.035, 0.16 - i * 0.012, 1500 + Math.random() * 1400, at); at += 0.06 + i * 0.016; } },
-    step(i) { tone(440 + i * 46, 0.09, 0.05, 0, 'triangle'); },
+    step(i) { tone(vary(440 + i * 46, 0.025), 0.09, vary(0.05, 0.18), 0, 'triangle'); },
     land() { tone(392, 0.28, 0.06); tone(587.3, 0.36, 0.05, 0.08); },
     card() { noise(0.3, 0.05, 500, 0, 2400); },
-    pick() { tone(660, 0.07, 0.04); },
+    pick() { tone(vary(660, 0.02), 0.07, 0.04); },
     next() { tone(523.3, 0.1, 0.03); }
   };
 
@@ -319,29 +333,71 @@
   }
 
   // ---------- Состояние ----------
+  const SAVE_V = 3;
+  const BAK = KEY + '-bak';
   function fresh() {
-    return { players: [], pos: {}, turn: 0, round: 1, extra: 0, decks: {}, history: [], pending: null, started: false, finale: false, uid: 0, startedAt: 0 };
+    return { v: SAVE_V, players: [], pos: {}, turn: 0, round: 1, extra: 0, decks: {}, used: {}, history: [], pending: null, started: false, finale: false, uid: 0, startedAt: 0 };
   }
+  // Сохранение из любой прошлой версии приводится к текущему виду; мусор отбрасывается
+  function migrate(s) {
+    if (!s || !Array.isArray(s.players)) return null;
+    const o = Object.assign(fresh(), s);
+    o.players = o.players.filter((p) => p && p.id && typeof p.name === 'string');
+    o.history = Array.isArray(o.history) ? o.history.filter((h) => h && h.pid) : [];
+    if ((s.v || 1) < 3) {
+      o.history.forEach((h) => { if (!h.pass && h.note == null) h.note = ''; });
+      if (o.pending && !o.pending.pick && o.pending.swaps == null) o.pending.swaps = 0;
+    }
+    if (!o.decks || typeof o.decks !== 'object') o.decks = {};
+    if (!o.used || typeof o.used !== 'object') o.used = {};
+    if (!o.pos || typeof o.pos !== 'object') o.pos = {};
+    const pd = o.pending;
+    if (pd && !o.players.some((p) => p.id === pd.pid)) o.pending = null;
+    else if (pd && !pd.pick && !(DECKS[pd.theme] && DECKS[pd.theme].cards[pd.idx] != null)) o.pending = null;
+    o.turn = o.players.length ? Math.min(Math.max(0, o.turn | 0), o.players.length - 1) : 0;
+    o.round = Math.max(1, o.round | 0);
+    o.players.forEach((p) => { const v = o.pos[p.id] | 0; o.pos[p.id] = ((v % N) + N) % N; });
+    if (!o.players.length) { o.started = false; o.finale = false; }
+    o.v = SAVE_V;
+    return o;
+  }
+  // Если основная запись испорчена, берётся копия с конца последнего хода
   function load() {
-    try {
-      const s = JSON.parse(localStorage.getItem(KEY));
-      if (!s || !Array.isArray(s.players)) return null;
-      return Object.assign(fresh(), s);
-    } catch (e) { return null; }
+    for (const k of [KEY, BAK]) {
+      try { const s = migrate(JSON.parse(localStorage.getItem(k))); if (s) return s; } catch (e) {}
+    }
+    return null;
   }
   let S = load() || fresh();
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+  function save() { try { S.v = SAVE_V; localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+  function checkpoint() { try { localStorage.setItem(BAK, JSON.stringify(S)); } catch (e) {} }
 
+  // Колода: стопка (decks) и сброс (used). Каждая карточка лежит ровно в одном месте:
+  // в стопке, в сбросе или открыта сейчас. Когда стопка кончается, перемешивается только сброс,
+  // поэтому открытая карточка не может выпасть повторно.
+  function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  }
   function draw(theme) {
+    const all = () => DECKS[theme].cards.map((_, i) => i);
     let d = S.decks[theme];
-    if (!d || !d.length) {
-      d = DECKS[theme].cards.map((_, i) => i);
-      for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
+    if (!d) d = shuffle(all());
+    else if (d.length <= 1) {
+      // стопка кончилась: сброс перемешивается и кладётся поверх оставшейся карточки
+      const u = S.used[theme] || [];
+      if (u.length) { d = d.concat(shuffle(u.slice())); S.used[theme] = []; }
+      else if (!d.length) d = shuffle(all());
     }
+    // одна и та же карточка не выпадает два раза подряд, пока в стопке есть другие
+    const last = (S.last = S.last || {})[theme];
+    if (d.length > 1 && d[d.length - 1] === last) { const t0 = d[0]; d[0] = d[d.length - 1]; d[d.length - 1] = t0; }
     const idx = d.pop();
     S.decks[theme] = d;
+    S.last[theme] = idx;
     return idx;
   }
+  const discard = (theme, idx) => { (S.used[theme] = S.used[theme] || []).push(idx); };
   // Карточка, от которой отказались, не сгорает: уходит в низ своей колоды
   const giveBack = (theme, idx) => { (S.decks[theme] = S.decks[theme] || []).unshift(idx); };
   const current = () => S.players[S.turn % S.players.length];
@@ -352,6 +408,8 @@
   function show(id) {
     for (const s of document.querySelectorAll('.screen')) s.hidden = s.id !== id;
     window.scrollTo(0, 0);
+    // искры не переезжают на другой экран
+    parts = []; if (fctx) fctx.clearRect(0, 0, innerWidth, innerHeight);
     anim($('#' + id), [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 280 });
     if (id !== 's-game') setGlow(skin().accent);
   }
@@ -884,6 +942,7 @@
       giveBack(pd.theme, pd.idx);
       S.history.push({ pid: pd.pid, name, pass: true, t: Date.now() });
     } else {
+      discard(pd.theme, pd.idx);
       S.history.push({
         pid: pd.pid, name, theme: pd.theme, idx: pd.idx, text: deck(pd.theme).cards[pd.idx],
         answer: pd.all ? null : pd.answer, note: '', all: !!pd.all, t: Date.now()
@@ -896,7 +955,8 @@
     const layer = $('#card-layer');
     const a = anim(flip, [{ transform: 'translateY(0) scale(1)', opacity: 1 }, { transform: 'translateY(28px) scale(.95)', opacity: 0 }], { duration: 200, fill: 'forwards' });
     const b = anim(layer, [{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: 'ease', fill: 'forwards' });
-    await Promise.all([done(a), done(b)]);
+    // запас по времени: в фоновой вкладке анимация может не завершиться, а ход должен перейти
+    await Promise.race([Promise.all([done(a), done(b)]), sleep(450)]);
     layer.hidden = true;
     flip.classList.remove('open', 'fresh');
     a && a.cancel(); b && b.cancel();
@@ -917,6 +977,7 @@
     }
   }
   function afterTurn() {
+    checkpoint();
     if (S.finale) { openFinale(); return; }
     renderTurn();
     const me = current();
@@ -976,7 +1037,7 @@
     S.uid = keepPlayers.reduce((m, p) => Math.max(m, +String(p.id).slice(1) || 0), 0);
     S.players = keepPlayers;
     keepPlayers.forEach((p) => { S.pos[p.id] = 0; });
-    save();
+    save(); checkpoint();
     $('#card-layer').hidden = true;
     $('#pick-layer').hidden = true;
     show('s-setup'); renderPlayers();
@@ -1100,7 +1161,7 @@
   $('#btn-new').onclick = () => newGame();
   $('#btn-erase').onclick = async () => {
     if (!(await confirmAsk(t('erase_confirm')))) return;
-    try { localStorage.removeItem(KEY); localStorage.removeItem(PKEY); } catch (e) {}
+    try { localStorage.removeItem(KEY); localStorage.removeItem(BAK); localStorage.removeItem(PKEY); } catch (e) {}
     location.reload();
   };
 
@@ -1127,7 +1188,7 @@
     ['[data-act=settings]', 'm_settings'], ['[data-act=new]', 'm_new'], ['[data-act=close]', 'm_close'],
     ['#sum-title', 'sum_title'], ['#btn-copy', 'copy'], ['#btn-new', 'newgame'], ['#btn-erase', 'erase'],
     ['#set-skin-l', 'set_skin'], ['#set-sound-l', 'set_sound'], ['#set-anim-l', 'set_anim'],
-    ['#sound-seg [data-s="1"]', 'on'], ['#sound-seg [data-s="0"]', 'off'],
+    ['#sound-seg [data-s="0"]', 'v0'], ['#sound-seg [data-s="1"]', 'v1'], ['#sound-seg [data-s="2"]', 'v2'],
     ['#anim-seg [data-f="0"]', 'full'], ['#anim-seg [data-f="1"]', 'quick'], ['#set-done', 'ok']
   ];
   const ARIA = [['#add-form button', 'add'], ['#btn-menu', 'a_menu'], ['#btn-back', 'a_back'], ['#dice-btn', 'a_dice'], ['#queue', 'a_queue'],
@@ -1146,7 +1207,7 @@
     renderSession();
     renderSkins();
     for (const b of $('#lang-seg').children) b.setAttribute('aria-pressed', String(b.dataset.lang === P.lang));
-    for (const b of $('#sound-seg').children) b.setAttribute('aria-pressed', String((b.dataset.s === '1') === (P.sound !== false)));
+    for (const b of $('#sound-seg').children) b.setAttribute('aria-pressed', String(+b.dataset.s === P.vol));
     for (const b of $('#anim-seg').children) b.setAttribute('aria-pressed', String((b.dataset.f === '1') === !!P.fast));
     if (!$('#s-game').hidden && !busy) { $('#turn-label').textContent = turnLabel(); if (!S.pending) setHint(t('tap_dice')); }
     if (S.pending && !S.pending.pick && !$('#card-layer').hidden) { fillCard(); fillPhrase(false); }
@@ -1194,10 +1255,37 @@
     const lang = e.target.closest('[data-lang]'), sk = e.target.closest('.skin'), snd = e.target.closest('[data-s]'), fst = e.target.closest('[data-f]');
     if (lang) setLang(lang.dataset.lang);
     else if (sk) { P.skin = sk.dataset.skin; saveP(); applySkin(); haptic('select'); }
-    else if (snd) { P.sound = snd.dataset.s === '1'; saveP(); applyLang(); if (P.sound) sfx.pick(); }
+    else if (snd) { P.vol = +snd.dataset.s; saveP(); applyLang(); if (P.vol) sfx.pick(); }
     else if (fst) { P.fast = fst.dataset.f === '1'; saveP(); applyLang(); }
     else if ((e.target === e.currentTarget && Date.now() - layerAt > 350) || e.target.closest('#set-done')) $('#set-layer').hidden = true;
   };
+
+  // ---------- Слои: фокус и фон ----------
+  // Открыт слой — экран под ним недоступен ни касанию, ни клавиатуре, ни скринридеру;
+  // фокус переходит на первый элемент слоя. Escape закрывает меню и настройки.
+  const layers = Array.from(document.querySelectorAll('.layer'));
+  function syncLayers() {
+    const open = layers.filter((l) => !l.hidden);
+    const top = open[open.length - 1];
+    for (const s of document.querySelectorAll('.screen')) s.inert = !!top;
+    for (const l of layers) l.inert = !!top && l !== top;
+  }
+  layers.forEach((l) => {
+    l.setAttribute('role', 'dialog'); l.setAttribute('aria-modal', 'true');
+    new MutationObserver(() => {
+      syncLayers();
+      if (!l.hidden && l.id !== 'card-layer' && l.id !== 'code-layer') {
+        const f = l.querySelector('button:not([disabled]),input');
+        f && f.focus({ preventScroll: true });
+      }
+    }).observe(l, { attributes: true, attributeFilter: ['hidden'] });
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (!$('#set-layer').hidden) $('#set-layer').hidden = true;
+    else if (!$('#menu-layer').hidden) $('#menu-layer').hidden = true;
+    else if (!$('#code-layer').hidden && codeMode !== 'set') closeCode();
+  });
 
   // ---------- Старт ----------
   // Экран не гаснет, пока идёт игра
