@@ -156,6 +156,26 @@
       abbr: { razo: 'WRM', otn: 'REL', den: 'MON', real: 'WRK', sem: 'FAM', telo: 'BOD', uver: 'CNF' }
     }
   };
+  Object.assign(STR.ru, {
+    intro_skip: 'Пропустить', intro_next: 'Дальше', intro_go: 'Начать', intro_replay: 'Показать заставку',
+    ho_label: 'Передай телефон', ho_tap: 'Нажми, чтобы продолжить',
+    intro: [
+      ['Игра-знакомство', 'Разговорная игра для встречи: один телефон, кубик и карточки с началом фраз.'],
+      ['7 тем · {n} карточек', 'Отношения, деньги, работа, семья, тело, уверенность — и лёгкий разогрев, с которого всё начинается.'],
+      ['Продолжи фразу вслух', 'Говори столько, сколько хочешь. От любой карточки можно отказаться.'],
+      ['Что это даёт', 'Повод сказать вслух то, о чём обычно молчат, услышать других и познакомиться ближе. Ведущая увидит, какие темы отозвались.']
+    ]
+  });
+  Object.assign(STR.en, {
+    intro_skip: 'Skip', intro_next: 'Next', intro_go: 'Let’s begin', intro_replay: 'Watch the intro',
+    ho_label: 'Pass the phone', ho_tap: 'Tap to continue',
+    intro: [
+      ['Getting to Know You', 'A conversation game for a gathering: one phone, a dice and cards with the start of a sentence.'],
+      ['7 topics · {n} cards', 'Relationships, money, work, family, body, confidence — and a light warm-up to begin with.'],
+      ['Finish the sentence out loud', 'Share as much or as little as you like. You can pass on any card.'],
+      ['What you get', 'A reason to say out loud what usually goes unsaid, to hear others and to get to know each other better. The host sees which topics resonated.']
+    ]
+  });
   const L = () => STR[P.lang] || STR.ru;
   const t = (k, vars) => {
     let s = L()[k]; if (s == null) s = STR.ru[k] || k;
@@ -682,16 +702,24 @@
     h.classList.remove('pop');
     if (pop) { void h.offsetWidth; h.classList.add('pop'); }
   }
-  function turnLabel() {
+  function roundText() {
     const lim = limit();
-    return t('turn') + ' · ' + (lim ? t('round_of', { a: Math.min(S.round, lim), b: lim }) : t('round_n', { a: S.round }));
+    return lim ? t('round_of', { a: Math.min(S.round, lim), b: lim }) : t('round_n', { a: S.round });
   }
+  const turnLabel = () => t('turn') + ' · ' + roundText();
   function renderTurn() {
     const me = current();
     const tn = $('#turn-name');
     tn.textContent = me ? me.name : '';
     tn.classList.toggle('long', !!me && Array.from(me.name).length > 12);
-    if (me && me.id !== lastTurnId) anim(tn, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 340 });
+    if (me && me.id !== lastTurnId) {
+      anim(tn, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 340 });
+      // волна по дорожке от клетки ходящей: поле «просыпается» к новому ходу
+      if (!P.fast && lastTurnId !== null) {
+        const from = S.pos[me.id] || 0;
+        for (let k = 0; k < N; k++) anim(cellEl((from + k) % N), [{ transform: 'scale(1)' }, { transform: 'scale(1.07)' }, { transform: 'scale(1)' }], { duration: 300, delay: 250 + k * 22 });
+      }
+    }
     lastTurnId = me ? me.id : null;
     $('#turn-label').textContent = turnLabel();
     setHint(t('tap_dice'));
@@ -981,7 +1009,9 @@
     if (S.finale) { openFinale(); return; }
     renderTurn();
     const me = current();
-    if (me && S.players.length > 2) toast(t('pass', { n: me.name }));
+    if (!me || S.players.length < 2) return;
+    if (reduced || P.fast) { if (S.players.length > 2) toast(t('pass', { n: me.name })); }
+    else handoff(me, S.turn === 0);
   }
 
   // ---------- Финал ----------
@@ -992,7 +1022,7 @@
     $('#fin-label').textContent = t('fin_label');
     $('#fin-title').textContent = t('fin_title');
     $('#fin-lead').textContent = t('fin_lead');
-    $('#fin-phrase').textContent = t('fin_phrase');
+    kinetic($('#fin-phrase'), t('fin_phrase'), 450, 110);
     $('#fin-more').textContent = t('fin_more');
     $('#fin-sum').textContent = t('m_summary');
     const cards = S.history.filter((h) => !h.pass);
@@ -1189,7 +1219,7 @@
     ['#sum-title', 'sum_title'], ['#btn-copy', 'copy'], ['#btn-new', 'newgame'], ['#btn-erase', 'erase'],
     ['#set-skin-l', 'set_skin'], ['#set-sound-l', 'set_sound'], ['#set-anim-l', 'set_anim'],
     ['#sound-seg [data-s="0"]', 'v0'], ['#sound-seg [data-s="1"]', 'v1'], ['#sound-seg [data-s="2"]', 'v2'],
-    ['#anim-seg [data-f="0"]', 'full'], ['#anim-seg [data-f="1"]', 'quick'], ['#set-done', 'ok']
+    ['#anim-seg [data-f="0"]', 'full'], ['#anim-seg [data-f="1"]', 'quick'], ['#set-done', 'ok'], ['#intro-replay', 'intro_replay']
   ];
   const ARIA = [['#add-form button', 'add'], ['#btn-menu', 'a_menu'], ['#btn-back', 'a_back'], ['#dice-btn', 'a_dice'], ['#queue', 'a_queue'],
     ['#btn-set', 'a_set'], ['#scale', 'scale_q'], ['#btn-lang', 'a_lang'], ['#card-lang', 'a_lang'], ['#warm', 'l_warm']];
@@ -1214,6 +1244,7 @@
     if (S.pending && S.pending.pick && !$('#pick-layer').hidden) openPick();
     if (!$('#s-summary').hidden) openSummary(true);
     if (!$('#s-finale').hidden) openFinale();
+    if (!$('#intro').hidden) showIntro(introI);
   }
   function setLang(l) { P.lang = l; langChosen = true; saveP(); applyLang(); haptic('select'); }
   const otherLang = () => (P.lang === 'en' ? 'ru' : 'en');
@@ -1267,7 +1298,8 @@
   function syncLayers() {
     const open = layers.filter((l) => !l.hidden);
     const top = open[open.length - 1];
-    for (const s of document.querySelectorAll('.screen')) s.inert = !!top;
+    const intro = !$('#intro').hidden;
+    for (const s of document.querySelectorAll('.screen')) s.inert = !!top || intro;
     for (const l of layers) l.inert = !!top && l !== top;
   }
   layers.forEach((l) => {
@@ -1287,6 +1319,131 @@
     else if (!$('#code-layer').hidden && codeMode !== 'set') closeCode();
   });
 
+  // ---------- Кинетический текст ----------
+  // Слова появляются по одному; при «уменьшении движения» текст ставится сразу
+  function kinetic(el, text, base, step) {
+    el.textContent = '';
+    if (reduced) { el.textContent = text; return; }
+    text.split(' ').forEach((w, i) => {
+      if (i) el.appendChild(document.createTextNode(' '));
+      const s = document.createElement('span');
+      s.className = 'w'; s.textContent = w;
+      s.style.animationDelay = (base + i * (step || 38)) + 'ms';
+      el.appendChild(s);
+    });
+  }
+
+  // ---------- Передача телефона ----------
+  // Цвет фишки следующей участницы раскрывается кругом от её фишки; тап или 2,2 с — и поле снова открыто
+  let hoTimer = null;
+  function handoff(me, newRound) {
+    const el = $('#handoff');
+    $('#ho-label').textContent = (newRound ? roundText() + ' · ' : '') + t('ho_label');
+    kinetic($('#ho-name'), me.name, 200, 70);
+    $('#ho-tap').textContent = t('ho_tap');
+    el.style.background = me.color;
+    el.hidden = false;
+    const tok = tokenEls[me.id];
+    let x = innerWidth / 2, y = innerHeight / 2;
+    if (tok) { const r = tok.getBoundingClientRect(); x = r.left + r.width / 2; y = r.top + r.height / 2; }
+    anim(el, [{ clipPath: `circle(0px at ${x}px ${y}px)` }, { clipPath: `circle(150% at ${x}px ${y}px)` }], { duration: 560, easing: 'cubic-bezier(.77,0,.175,1)' });
+    clearTimeout(hoTimer); hoTimer = setTimeout(closeHandoff, 2200);
+  }
+  function closeHandoff() {
+    clearTimeout(hoTimer);
+    const el = $('#handoff');
+    if (el.hidden) return;
+    const a = anim(el, [{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: 'ease' });
+    Promise.race([done(a), sleep(260)]).then(() => { el.hidden = true; });
+  }
+  $('#handoff').onclick = closeHandoff;
+
+  // ---------- Заставка ----------
+  const INTRO_MS = 4200;
+  let introI = 0, introTimer = null;
+  function introVis(i) {
+    const box = document.createElement('div');
+    box.className = 'intro-vis';
+    if (i === 0) {
+      box.innerHTML = '<span class="iv-halo"></span><span class="iv-halo"></span><div class="iv-dice"></div>';
+      const c = cube.cloneNode(true);
+      c.removeAttribute('id'); c.removeAttribute('style');
+      box.querySelector('.iv-dice').appendChild(c);
+    } else if (i === 1) {
+      const fan = document.createElement('div'); fan.className = 'iv-fan';
+      ORDER.forEach((th, k) => {
+        const c = document.createElement('div'); c.className = 'iv-card';
+        c.style.background = THEME_COLOR[th]; c.style.color = ink(THEME_COLOR[th]);
+        c.style.transform = `rotate(${(k - 3) * 14}deg)`;
+        c.style.animationDelay = 120 + k * 70 + 'ms';
+        c.textContent = L().abbr[th];
+        fan.appendChild(c);
+      });
+      box.appendChild(fan);
+    } else if (i === 2) {
+      const col = THEME_COLOR.razo;
+      const card = document.createElement('div'); card.className = 'iv-sample';
+      card.innerHTML = `<span class="chip" style="background:${col};color:${ink(col)}"></span><p></p><div class="iv-scale"><i></i></div>`;
+      card.querySelector('.chip').textContent = deck('razo').title;
+      kinetic(card.querySelector('p'), deck('razo').cards[0], 700, 90);
+      box.appendChild(card);
+    } else {
+      box.innerHTML = '<span class="iv-core"></span><div class="iv-orbit"></div>';
+      const orb = box.querySelector('.iv-orbit');
+      TOKEN_COLORS.slice(0, 6).forEach((c, k) => {
+        const d = document.createElement('i');
+        d.style.background = c;
+        d.style.transform = `rotate(${k * 60}deg) translateY(-86px)`;
+        d.style.animationDelay = 150 + k * 90 + 'ms';
+        orb.appendChild(d);
+      });
+    }
+    return box;
+  }
+  function showIntro(i) {
+    const scenes = L().intro, last = scenes.length - 1;
+    introI = Math.max(0, Math.min(i, last));
+    const total = ORDER.reduce((n, th) => n + DECKS[th].cards.length, 0);
+    const st = $('#intro-stage');
+    st.innerHTML = '';
+    const h = document.createElement('h2'); h.className = 'intro-title';
+    kinetic(h, scenes[introI][0].replace('{n}', total), 160, 80);
+    const p = document.createElement('p'); p.className = 'intro-text';
+    p.textContent = scenes[introI][1];
+    st.append(introVis(introI), h, p);
+    const dots = $('#intro-dots');
+    dots.innerHTML = '';
+    dots.style.setProperty('--ms', INTRO_MS + 'ms');
+    scenes.forEach((_, k) => { const d = document.createElement('i'); d.className = k < introI ? 'done' : k === introI ? 'on' : ''; dots.appendChild(d); });
+    $('#intro-go').textContent = t(introI === last ? 'intro_go' : 'intro_next');
+    $('#intro-skip').textContent = t('intro_skip');
+    $('#intro-skip').hidden = introI === last;
+    clearTimeout(introTimer);
+    if (introI < last && !reduced) introTimer = setTimeout(() => showIntro(introI + 1), INTRO_MS);
+  }
+  function openIntro() {
+    $('#intro').hidden = false;
+    syncLayers();
+    showIntro(0);
+  }
+  function closeIntro() {
+    clearTimeout(introTimer);
+    if (!P.intro) { P.intro = true; saveP(); }
+    const el = $('#intro');
+    if (el.hidden) return;
+    const a = anim(el, [{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(1.04)' }], { duration: 340, easing: 'ease' });
+    Promise.race([done(a), sleep(380)]).then(() => {
+      el.hidden = true;
+      $('#intro-stage').innerHTML = '';
+      syncLayers();
+      if (!$('#s-setup').hidden) kinetic($('#h1'), t('h1'), 60, 70);
+    });
+  }
+  $('#intro-stage').onclick = () => { if (introI < L().intro.length - 1) showIntro(introI + 1); };
+  $('#intro-go').onclick = () => { if (introI < L().intro.length - 1) showIntro(introI + 1); else closeIntro(); };
+  $('#intro-skip').onclick = closeIntro;
+  $('#intro-replay').onclick = openIntro;
+
   // ---------- Старт ----------
   // Экран не гаснет, пока идёт игра
   let wake = null;
@@ -1298,4 +1455,6 @@
   applySkin();
   applyLang();
   if (S.started && S.players.length) { if (S.finale) openFinale(); else openGame(false); keepAwake(); }
+  else if (!P.intro) openIntro();
+  else kinetic($('#h1'), t('h1'), 120, 70);
 })();

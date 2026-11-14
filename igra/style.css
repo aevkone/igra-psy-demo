@@ -335,3 +335,69 @@ button.badge::after{content:'';position:absolute;inset:-8px}
 /* Тост */
 .toast{max-width:calc(100vw - 32px);white-space:normal;text-align:center;border-radius:22px;cursor:pointer}
 .toast.on{pointer-events:auto}
+
+/* ===== Версия 4: заставка и моушн ===== */
+.w{display:inline-block;animation:word 440ms var(--ease) backwards}
+
+/* Кубик в ожидании: лёгкое покачивание в объёме */
+.scene.wait .cube{animation:nudge 2.4s var(--ease) infinite,sway 5.5s ease-in-out infinite}
+@keyframes sway{0%,100%{rotate:0 1 0 -9deg}50%{rotate:0 1 0 9deg}}
+
+/* Передача телефона: цвет фишки раскрывается кругом от самой фишки */
+.handoff{position:fixed;inset:0;z-index:25;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;text-align:center;color:#121211;cursor:pointer}
+.handoff .label{color:rgba(18,18,17,.62)}
+.ho-name{font-size:54px;line-height:1.02;font-weight:500;letter-spacing:-.045em;overflow-wrap:anywhere;max-width:100%}
+.ho-tap{font-size:14px;color:rgba(18,18,17,.62);margin-top:14px;animation:fadeUp 500ms var(--ease) 700ms backwards}
+
+/* Заставка */
+.intro{position:fixed;inset:0;z-index:30;background:var(--black);display:flex;justify-content:center;overflow:hidden}
+.intro-in{width:100%;max-width:480px;min-width:0;display:flex;flex-direction:column;padding:calc(12px + env(safe-area-inset-top,0px)) 20px calc(20px + var(--safe-b))}
+.intro-top{display:flex;align-items:center;gap:12px;height:44px}
+.intro-dots{display:flex;gap:6px;flex:1}
+.intro-dots i{position:relative;flex:1;height:3px;border-radius:2px;background:var(--line);overflow:hidden}
+.intro-dots i::after{content:'';position:absolute;inset:0;background:var(--off);transform:scaleX(0);transform-origin:0 50%}
+.intro-dots i.done::after{transform:scaleX(1)}
+.intro-dots i.on::after{animation:fill var(--ms,4200ms) linear forwards}
+.intro-skip{width:auto;padding:0 4px;flex:none}
+.intro-stage{flex:1;display:flex;flex-direction:column;justify-content:center;cursor:pointer;min-height:0}
+.intro-vis{position:relative;height:min(40vh,300px);display:grid;place-items:center;margin-bottom:28px}
+.intro-title{font-size:40px;line-height:1.04;font-weight:500;letter-spacing:-.045em;text-wrap:balance}
+.intro-text{font-size:17px;line-height:1.45;color:var(--gray-d);margin-top:14px;animation:fadeUp 520ms var(--ease) 420ms backwards}
+@keyframes fill{to{transform:scaleX(1)}}
+
+/* Сцена 1: кубик */
+.iv-dice{width:84px;height:84px;perspective:420px;transform:scale(1.55);animation:drop 900ms var(--ease) backwards}
+.iv-dice .cube{transition:none;animation:tumble 7s linear infinite}
+.iv-halo{position:absolute;width:230px;height:230px;border-radius:50%;box-shadow:inset 0 0 0 1px var(--line);animation:ring 3.2s var(--ease) infinite}
+.iv-halo + .iv-halo{animation-delay:1.6s}
+@keyframes tumble{from{transform:rotateX(-20deg) rotateY(0deg)}to{transform:rotateX(340deg) rotateY(720deg)}}
+@keyframes drop{from{opacity:0;transform:translateY(-70px) scale(1.2)}}
+@keyframes ring{0%{opacity:.9;transform:scale(.5)}100%{opacity:0;transform:scale(1.25)}}
+
+/* Сцена 2: веер колод */
+.iv-fan{position:relative;width:96px;height:132px;margin-top:30px}
+.iv-card{position:absolute;inset:0;border-radius:14px;padding:10px;font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.06em;transform-origin:50% 135%;box-shadow:0 10px 26px rgba(0,0,0,.35),var(--cell-ring);animation:fan 800ms var(--ease) backwards}
+@keyframes fan{from{opacity:0;transform:rotate(0deg) translateY(30px)}}
+
+/* Сцена 3: карточка с фразой */
+.iv-sample{width:min(100%,300px);border-radius:24px;background:#F3F1EE;color:#121211;padding:18px 18px 16px;box-shadow:0 24px 60px rgba(0,0,0,.4);animation:cardIn 800ms var(--ease) backwards}
+.iv-sample .chip{box-shadow:inset 0 0 0 1px rgba(18,18,17,.18)}
+.iv-sample p{font-size:23px;line-height:1.14;font-weight:500;letter-spacing:-.035em;margin:16px 0 18px;min-height:2.3em}
+.iv-scale{position:relative;height:36px;border-radius:14px;background:#E7E5E1}
+.iv-scale i{position:absolute;top:4px;bottom:4px;left:4px;width:calc((100% - 8px)/3);border-radius:10px;background:var(--accent-ink);animation:slide 3.6s var(--ease) 900ms infinite backwards}
+@keyframes cardIn{from{opacity:0;transform:translateY(40px) rotate(-6deg) scale(.92)}}
+@keyframes slide{0%,20%{transform:translateX(0);opacity:0}30%{opacity:1}50%{transform:translateX(100%)}80%,100%{transform:translateX(200%);opacity:1}}
+
+/* Сцена 4: круг участниц */
+.iv-orbit{position:relative;width:210px;height:210px;animation:spin 26s linear infinite}
+.iv-orbit i{position:absolute;left:50%;top:50%;width:38px;height:38px;margin:-19px;border-radius:50%;box-shadow:var(--tok-ring),0 6px 16px rgba(0,0,0,.35);animation:pop2 600ms var(--ease) backwards}
+.iv-core{position:absolute;width:86px;height:86px;border-radius:50%;background:var(--accent);animation:pulse 2.8s ease-in-out infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pop2{from{opacity:0;scale:.6}}
+@keyframes pulse{0%,100%{transform:scale(.86);opacity:.85}50%{transform:scale(1);opacity:1}}
+
+@media (max-height:680px){.intro-title{font-size:32px}.intro-vis{height:32vh;margin-bottom:18px}.ho-name{font-size:44px}}
+@media (prefers-reduced-motion:reduce){
+  .iv-dice .cube,.iv-orbit,.iv-core,.iv-halo,.iv-scale i,.intro-dots i.on::after{animation:none!important}
+  .intro-dots i.on::after{transform:scaleX(1)}
+}

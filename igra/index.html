@@ -67,6 +67,7 @@
       <details class="rules" id="rules">
         <summary id="rules-title"></summary>
         <ol><li></li><li></li><li></li><li></li><li></li></ol>
+        <button type="button" class="link-btn" id="intro-replay"></button>
       </details>
     </div>
   </section>
@@ -212,6 +213,25 @@
       <input id="code-in" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="····">
       <button class="pill accent wide" id="code-ok"></button>
       <button class="pill ghost wide" id="code-alt"></button>
+    </div>
+  </div>
+
+  <!-- Передача телефона -->
+  <div id="handoff" class="handoff" hidden>
+    <p class="label" id="ho-label"></p>
+    <p class="ho-name" id="ho-name"></p>
+    <p class="ho-tap" id="ho-tap"></p>
+  </div>
+
+  <!-- Заставка -->
+  <div id="intro" class="intro" hidden>
+    <div class="intro-in">
+      <div class="intro-top">
+        <div class="intro-dots" id="intro-dots" aria-hidden="true"></div>
+        <button class="link-btn intro-skip" id="intro-skip"></button>
+      </div>
+      <div class="intro-stage" id="intro-stage"></div>
+      <button class="pill accent wide" id="intro-go"></button>
     </div>
   </div>
 
