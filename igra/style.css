@@ -421,3 +421,10 @@ button.badge::after{content:'';position:absolute;inset:-8px}
 .summary-actions{position:static;display:grid;grid-template-columns:1fr 1fr;gap:10px;background:none}
 .summary-actions #btn-new,.summary-actions #btn-erase{grid-column:1/-1}
 .summary-actions .pill{padding:0 12px;font-size:15px}
+
+/* ===== Версия 4.3: находки технических тестировщиков ===== */
+/* выключенная тема читается: контраст текста выше, зачёркивание остаётся признаком */
+.chip-btn{opacity:.72}
+/* рамка особой клетки видна в любой теме: тёмная на светлой клетке */
+.cell.special{box-shadow:inset 0 0 0 2px rgba(18,18,17,.72)}
+.intro-dots.manual i.on::after{animation:none;transform:scaleX(1)}

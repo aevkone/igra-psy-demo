@@ -50,7 +50,7 @@
     { id: 'forest', ru: 'Лес', en: 'Forest', bg: '#0A0F0C', accent: '#8FB58A',
       decks: { razo: '#E6E8E0', otn: '#D98F5F', den: '#D3BF73', real: '#8FB58A', sem: '#A68B6A', telo: '#D9B3A0', uver: '#4F7A52' } },
     { id: 'rose', ru: 'Пудра', en: 'Blush', bg: '#F7EDEA', accent: '#B04458',
-      decks: { razo: '#E9DAD5', otn: '#B04458', den: '#D2A86A', real: '#93A58C', sem: '#A77F78', telo: '#E0A9A6', uver: '#9C3B50' } },
+      decks: { razo: '#E9DAD5', otn: '#B04458', den: '#D2A86A', real: '#93A58C', sem: '#A77F78', telo: '#E0A9A6', uver: '#6E2437' } },
     { id: 'violet', ru: 'Лаванда', en: 'Lavender', bg: '#0E0D13', accent: '#A493E0',
       decks: { razo: '#E7E5EE', otn: '#A493E0', den: '#D6BE7C', real: '#88B3A6', sem: '#9A86A8', telo: '#D7A6C4', uver: '#6F5BB8' } }
   ];
@@ -410,6 +410,7 @@
     o.round = Math.max(1, o.round | 0);
     o.players.forEach((p) => { const v = o.pos[p.id] | 0; o.pos[p.id] = ((v % N) + N) % N; });
     if (!o.players.length) { o.started = false; o.finale = false; }
+    if (!o.startedAt && o.history.length) o.startedAt = o.history[0].t || Date.now();
     o.v = SAVE_V;
     return o;
   }
@@ -489,7 +490,7 @@
         delete S.pos[p.id];
         if (S.pending && S.pending.pid === p.id) S.pending = null;
         if (S.turn >= S.players.length) S.turn = 0;
-        if (!S.players.length) { S.started = false; S.finale = false; }
+        if (!S.players.length) { S.started = false; S.finale = false; S.round = 1; S.tir = 0; S.extra = 0; }
         save(); renderPlayers();
       };
       ol.appendChild(li);
@@ -595,6 +596,7 @@
   $('#code-in').oninput = (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4); };
   $('#code-in').onkeydown = (e) => { if (e.key === 'Enter') $('#code-ok').click(); };
   $('#code-ok').onclick = () => {
+    if (Date.now() - layerAt < 350) return;
     const v = $('#code-in').value;
     if (codeMode !== 'enter') {
       if (!/^\d{4}$/.test(v)) { toast(t('code_4')); return; }
@@ -605,6 +607,7 @@
     else { toast(t('code_wrong')); haptic('heavy'); $('#code-in').value = ''; }
   };
   $('#code-alt').onclick = async () => {
+    if (Date.now() - layerAt < 350) return;
     if (codeMode === 'change') { P.code = ''; P.codeAsked = true; saveP(); renderSession(); closeCode(); toast(t('code_removed')); return; }
     if (codeMode === 'set') { P.codeAsked = true; saveP(); closeCode(); codeCb && codeCb(); return; }
     if (!(await confirmAsk(t('forgot_confirm')))) return;
@@ -806,6 +809,25 @@
     haptic('medium');
     if (!reduced) sfx.dice(P.fast ? 4 : 9);
     const v = 1 + Math.floor(Math.random() * 6);
+    const me = current();
+    if (!me) return;
+    const start = S.pos[me.id] || 0, dest = (start + v) % N;
+    // Что выпало: первая карточка каждой — разогрев; на углах особые клетки
+    // пас на первой карточке не считается: следующая снова будет из разогрева
+    const first = P.warm !== false && !S.history.some((h) => h.pid === me.id && !h.pass);
+    const sp = SPECIAL[dest];
+    let theme = themeOf(dest), mode = 'card', label = short(theme);
+    if (first) { theme = 'razo'; label = short('razo') + t('first_round'); }
+    else if (sp === 'all' && S.players.length > 1) { theme = 'razo'; mode = 'all'; label = t('sp_all'); }
+    else if (sp === 'pick') { mode = 'pick'; label = t('sp_pick'); }
+    // шестёрка даёт выбрать тему самой: у кубика появляется смысл кроме числа шагов
+    else if (v === 6 && !sp) { mode = 'pick'; label = t('six'); }
+    const pend = mode === 'pick' ? { pid: me.id, pick: true }
+      : { pid: me.id, theme, idx: draw(theme), answer: null, swaps: 0, all: mode === 'all' };
+    // Исход записывается до анимации: перезагрузка посреди броска откроет ту же карточку, а не даст перебросить.
+    // В памяти фишка остаётся на старте и идёт по клеткам уже для глаз.
+    S.pos[me.id] = dest; S.pending = pend; save();
+    S.pos[me.id] = start; S.pending = null;
     spin += 2 + (v % 2);
     const [rx, ry] = FACE[v];
     cube.style.transitionDuration = reduced ? '1ms' : (tm.roll - 50) + 'ms';
@@ -818,9 +840,7 @@
     haptic('light');
     setHint(`<span>${t('rolled')} <b>${v}</b></span>`, true);
 
-    const me = current();
-    if (!me) return;
-    let p = S.pos[me.id] || 0;
+    let p = start;
     for (let s = 0; s < v; s++) {
       p = (p + 1) % N;
       S.pos[me.id] = p;
@@ -835,16 +855,6 @@
     }
     squash(me.id);
 
-    // Что выпало: первая карточка каждой — разогрев; на углах особые клетки
-    // пас на первой карточке не считается: следующая снова будет из разогрева
-    const first = P.warm !== false && !S.history.some((h) => h.pid === me.id && !h.pass);
-    const sp = SPECIAL[p];
-    let theme = themeOf(p), mode = 'card', label = short(theme);
-    if (first) { theme = 'razo'; label = short('razo') + t('first_round'); }
-    else if (sp === 'all' && S.players.length > 1) { theme = 'razo'; mode = 'all'; label = t('sp_all'); }
-    else if (sp === 'pick') { mode = 'pick'; label = t('sp_pick'); }
-    // шестёрка даёт выбрать тему самой: у кубика появляется смысл кроме числа шагов
-    else if (v === 6 && !sp) { mode = 'pick'; label = t('six'); }
     const col = THEME_COLOR[theme];
     const land = cellEl(p);
     land.classList.add('land');
@@ -860,17 +870,15 @@
     }
     if (!skip) sfx.land();
     haptic('medium');
-    // название темы держится на экране не меньше полсекунды, даже при пропуске
-    if (skip) await sleep(500); else await wait(tm.land);
+    // название темы держится на экране не меньше полсекунды, даже если пропуск нажали во время паузы
+    const shownAt = Date.now();
+    if (!skip) await wait(tm.land);
+    const left = 500 - (Date.now() - shownAt);
+    if (left > 0) await sleep(left);
 
-    if (mode === 'pick') {
-      S.pending = { pid: me.id, pick: true };
-      save();
-      openPick();
-      return;
-    }
-    S.pending = { pid: me.id, theme, idx: draw(theme), answer: null, swaps: 0, all: mode === 'all' };
+    S.pending = pend;
     save();
+    if (mode === 'pick') { openPick(); return; }
     await openCard(false, land);
   }
   $('#dice-btn').onclick = roll;
@@ -1212,7 +1220,12 @@
           const b = document.createElement('button');
           b.className = 'badge ' + (h.answer || 'none');
           b.textContent = h.answer ? t(h.answer) : '+ ' + t('mark');
-          b.onclick = () => { h.answer = NEXT_MARK[h.answer || ''] || null; save(); haptic('select'); openSummary(true); };
+          b.onclick = () => {
+            const k = Array.from(document.querySelectorAll('#summary button.badge')).indexOf(b);
+            h.answer = NEXT_MARK[h.answer || ''] || null; save(); haptic('select'); openSummary(true);
+            const nb2 = document.querySelectorAll('#summary button.badge')[k];
+            nb2 && nb2.focus({ preventScroll: true });
+          };
           e.querySelector('.entry-top').appendChild(b);
         }
         e.appendChild(noteBtn(h));
@@ -1377,7 +1390,7 @@
   function syncLayers() {
     const open = layers.filter((l) => !l.hidden);
     const top = open[open.length - 1];
-    const intro = !$('#intro').hidden;
+    const intro = !$('#intro').hidden || !$('#handoff').hidden;
     for (const s of document.querySelectorAll('.screen')) s.inert = !!top || intro;
     for (const l of layers) l.inert = !!top && l !== top;
   }
@@ -1414,7 +1427,7 @@
 
   // ---------- Передача телефона ----------
   // Цвет фишки следующей участницы раскрывается кругом от её фишки; тап или 2,2 с — и поле снова открыто
-  let hoTimer = null;
+  let hoTimer = null, hoAt = 0;
   function handoff(me, newRound) {
     const el = $('#handoff');
     $('#ho-label').textContent = (newRound ? roundText() + ' · ' : '') + t('ho_label');
@@ -1422,6 +1435,8 @@
     $('#ho-tap').textContent = t('ho_tap');
     el.style.background = me.color;
     el.hidden = false;
+    hoAt = Date.now();
+    syncLayers();
     const tok = tokenEls[me.id];
     let x = innerWidth / 2, y = innerHeight / 2;
     if (tok) { const r = tok.getBoundingClientRect(); x = r.left + r.width / 2; y = r.top + r.height / 2; }
@@ -1433,13 +1448,14 @@
     const el = $('#handoff');
     if (el.hidden) return;
     const a = anim(el, [{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: 'ease' });
-    Promise.race([done(a), sleep(260)]).then(() => { el.hidden = true; wave(); });
+    Promise.race([done(a), sleep(260)]).then(() => { el.hidden = true; syncLayers(); wave(); });
   }
-  $('#handoff').onclick = closeHandoff;
+  // касание в первые 0,4 с не считается: это может быть ещё палец прошлой участницы
+  $('#handoff').onclick = () => { if (Date.now() - hoAt > 400) closeHandoff(); };
 
   // ---------- Заставка ----------
   const INTRO_MS = 4200;
-  let introI = 0, introTimer = null;
+  let introI = 0, introTimer = null, introManual = false, introClosing = false;
   function introVis(i) {
     const box = document.createElement('div');
     box.className = 'intro-vis';
@@ -1498,9 +1514,11 @@
     $('#intro-skip').textContent = t('intro_skip');
     $('#intro-skip').hidden = introI === last;
     clearTimeout(introTimer);
-    if (introI < last && !reduced) introTimer = setTimeout(() => showIntro(introI + 1), INTRO_MS);
+    dots.classList.toggle('manual', introManual);
+    if (introI < last && !reduced && !introManual) introTimer = setTimeout(() => showIntro(introI + 1), INTRO_MS);
   }
   function openIntro() {
+    introManual = false; introClosing = false;
     $('#intro').hidden = false;
     syncLayers();
     showIntro(0);
@@ -1509,7 +1527,8 @@
     clearTimeout(introTimer);
     if (!P.intro) { P.intro = true; saveP(); }
     const el = $('#intro');
-    if (el.hidden) return;
+    if (el.hidden || introClosing) return;
+    introClosing = true;
     const a = anim(el, [{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(1.04)' }], { duration: 340, easing: 'ease' });
     Promise.race([done(a), sleep(380)]).then(() => {
       el.hidden = true;
@@ -1518,8 +1537,8 @@
       if (!$('#s-setup').hidden) kinetic($('#h1'), t('h1'), 60, 70);
     });
   }
-  $('#intro-stage').onclick = () => { if (introI < L().intro.length - 1) showIntro(introI + 1); };
-  $('#intro-go').onclick = () => { if (introI < L().intro.length - 1) showIntro(introI + 1); else closeIntro(); };
+  $('#intro-stage').onclick = () => { introManual = true; if (introI < L().intro.length - 1) showIntro(introI + 1); else showIntro(introI); };
+  $('#intro-go').onclick = () => { introManual = true; if (introI < L().intro.length - 1) showIntro(introI + 1); else closeIntro(); };
   $('#intro-skip').onclick = closeIntro;
   $('#intro-replay').onclick = openIntro;
 
