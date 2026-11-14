@@ -1454,7 +1454,10 @@
 
   applySkin();
   applyLang();
+  // Заставка показывается один раз каждому, даже если на телефоне уже идёт игра;
+  // адрес с ?intro=1 показывает её снова
+  const wantIntro = !P.intro || /[?&]intro=1/.test(location.search);
   if (S.started && S.players.length) { if (S.finale) openFinale(); else openGame(false); keepAwake(); }
-  else if (!P.intro) openIntro();
-  else kinetic($('#h1'), t('h1'), 120, 70);
+  else if (!wantIntro) kinetic($('#h1'), t('h1'), 120, 70);
+  if (wantIntro) openIntro();
 })();
