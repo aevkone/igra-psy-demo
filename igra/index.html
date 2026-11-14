@@ -5,10 +5,25 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0B0B0A">
 <meta name="robots" content="noindex">
-<title>Игра-знакомство · Юлия Павлова</title>
+<title>Игра-знакомство</title>
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-<script defer src="https://telegram.org/js/telegram-web-app.js"></script>
-<script>try{var p=JSON.parse(localStorage.getItem('yulia-igra-prefs')||'{}');document.documentElement.dataset.skin=p.skin||'terra';if(p.lang)document.documentElement.lang=p.lang}catch(e){document.documentElement.dataset.skin='terra'}</script>
+<script>
+(function(){
+  var d=document.documentElement,p={};
+  try{p=JSON.parse(localStorage.getItem('yulia-igra-prefs')||'{}')}catch(e){}
+  d.dataset.skin=p.skin||'terra';
+  var l=p.lang,q=(location.search.match(/[?&]lang=(ru|en)/)||[])[1];
+  if(l!=='ru'&&l!=='en'){
+    var ls=navigator.languages||[navigator.language||'en'],ru=false;
+    for(var i=0;i<ls.length;i++)if(String(ls[i]).toLowerCase().indexOf('ru')===0)ru=true;
+    l=q||(ru?'ru':'en');
+  }
+  d.lang=l;
+  // Скрипт Telegram нужен только внутри Telegram: в обычном браузере страница его не ждёт
+  if(/tgWebApp/.test(location.href)||window.TelegramWebviewProxy)
+    document.write('<script src="https://telegram.org/js/telegram-web-app.js"><\/script>');
+})();
+</script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -20,30 +35,38 @@
   <!-- Экран 1: участницы -->
   <section class="screen" id="s-setup">
     <header class="top">
-      <span class="logo"><img src="../favicon.svg" width="30" height="30" alt=""><span><span id="brand">Юлия Павлова</span><i class="dot"></i></span></span>
-      <button id="btn-set" class="icon-btn push" aria-label="Настройки"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></svg></button>
+      <span class="logo"><img class="mark" src="../favicon.svg" width="30" height="30" alt=""><span><span id="brand"></span><i class="dot"></i></span></span>
+      <button id="btn-lang" class="icon-btn txt push"></button>
+      <button id="btn-set" class="icon-btn">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></svg>
+      </button>
     </header>
     <div class="setup">
-      <p class="label">Игра-знакомство</p>
-      <h1>Кто сегодня играет?</h1>
-      <p class="muted">Впиши имена в том порядке, в котором будете ходить. Телефон передаётся по кругу.</p>
+      <p class="label" id="l-game"></p>
+      <h1 id="h1"></h1>
+      <p class="muted" id="setup-sub"></p>
+      <p class="privacy" id="privacy"></p>
       <form id="add-form" class="add" autocomplete="off">
-        <input id="add-name" maxlength="20" placeholder="Имя участницы" enterkeyhint="done">
-        <button class="pill accent" type="submit" aria-label="Добавить">+</button>
+        <input id="add-name" maxlength="20" enterkeyhint="done">
+        <button class="pill accent" type="submit">+</button>
       </form>
       <ol id="players" class="players"></ol>
       <div class="setup-actions">
-        <button id="btn-start" class="pill accent wide" disabled>Начать игру</button>
+        <button id="btn-start" class="pill accent wide" disabled></button>
       </div>
-      <details class="rules">
-        <summary>Как играть</summary>
-        <ol>
-          <li>Бросай кубик, фишка пройдёт по полю.</li>
-          <li>Цвет клетки — тема. Откроется карточка с началом фразы.</li>
-          <li>Продолжи фразу вслух и расскажи, почему, как тебе кажется, она выпала именно тебе.</li>
-          <li>Отметь, насколько фраза про тебя: «Точно нет», «И да, и нет» или «Точно да».</li>
-          <li>Передай телефон следующей. В конце Юля увидит итоги.</li>
-        </ol>
+      <details class="rules" id="sess">
+        <summary id="sess-title"></summary>
+        <div class="sess">
+          <label class="fld"><span id="l-host"></span><input id="host-name" maxlength="24" autocomplete="off"></label>
+          <div class="fld"><span id="l-topics"></span><div class="chips" id="topics"></div></div>
+          <div class="fld row"><span id="l-warm"></span><button class="switch" id="warm" role="switch"><i></i></button></div>
+          <div class="fld"><span id="l-rounds"></span><div class="seg" id="rounds-seg"><button data-r="1">1</button><button data-r="2">2</button><button data-r="3">3</button><button data-r="0">∞</button></div></div>
+          <label class="fld"><span id="l-code"></span><input id="host-code" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="····"></label>
+        </div>
+      </details>
+      <details class="rules" id="rules">
+        <summary id="rules-title"></summary>
+        <ol><li></li><li></li><li></li><li></li><li></li></ol>
       </details>
     </div>
   </section>
@@ -51,19 +74,19 @@
   <!-- Экран 2: поле -->
   <section class="screen" id="s-game" hidden>
     <header class="top">
-      <span class="logo small"><img src="../favicon.svg" width="26" height="26" alt=""></span>
-      <div id="queue" class="queue" aria-label="Очередь ходов"></div>
-      <button id="btn-menu" class="icon-btn" aria-label="Меню">
+      <span class="logo small"><img class="mark" src="../favicon.svg" width="26" height="26" alt=""></span>
+      <div id="queue" class="queue"></div>
+      <button id="btn-menu" class="icon-btn">
         <svg viewBox="0 0 24 24" width="22" height="22"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
       </button>
     </header>
     <div class="board-wrap">
       <div id="board" class="board">
-        <div class="center">
-          <p class="label" id="turn-label">Ходит</p>
+        <div class="center" id="center">
+          <p class="label" id="turn-label"></p>
           <p class="turn-name" id="turn-name"></p>
           <div class="dice-wrap">
-          <div class="scene" id="dice-btn" role="button" tabindex="0" aria-label="Бросить кубик">
+          <div class="scene" id="dice-btn" role="button" tabindex="0">
             <div class="cube" id="cube">
               <div class="face f1"><i></i></div>
               <div class="face f2"><i></i><i></i></div>
@@ -75,7 +98,7 @@
           </div>
           <i class="dice-shadow" aria-hidden="true"></i>
           </div>
-          <p class="hint" id="dice-hint">Нажми на кубик</p>
+          <p class="hint" id="dice-hint" aria-live="polite"></p>
         </div>
       </div>
     </div>
@@ -85,68 +108,110 @@
   <!-- Экран 3: итоги -->
   <section class="screen" id="s-summary" hidden>
     <header class="top">
-      <button id="btn-back" class="icon-btn" aria-label="Назад к полю">
+      <button id="btn-back" class="icon-btn">
         <svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <span class="top-title">Итоги игры</span>
+      <span class="top-title" id="sum-title"></span>
       <span class="icon-btn" aria-hidden="true"></span>
     </header>
     <div id="summary" class="summary"></div>
     <div class="summary-actions">
-      <button id="btn-copy" class="pill accent wide">Скопировать итоги</button>
-      <button id="btn-new" class="pill ghost wide">Новая игра</button>
+      <button id="btn-copy" class="pill accent wide"></button>
+      <button id="btn-new" class="pill ghost wide"></button>
+      <button id="btn-erase" class="link-btn"></button>
+    </div>
+  </section>
+
+  <!-- Экран 4: финал -->
+  <section class="screen" id="s-finale" hidden>
+    <div class="finale">
+      <p class="label" id="fin-label"></p>
+      <h1 id="fin-title"></h1>
+      <p class="fin-lead" id="fin-lead"></p>
+      <p class="fin-phrase" id="fin-phrase"></p>
+      <div class="mosaic" id="mosaic" aria-hidden="true"></div>
+      <p class="muted" id="fin-count"></p>
+      <div class="setup-actions">
+        <button id="fin-more" class="pill accent wide"></button>
+        <button id="fin-sum" class="pill ghost wide"></button>
+      </div>
     </div>
   </section>
 
   <!-- Карточка -->
   <div id="card-layer" class="layer" hidden>
     <div class="card-flip" id="card-flip">
-      <div class="card back"><span class="back-mark">Ю<i class="dot"></i></span></div>
+      <div class="card back" aria-hidden="true"><span class="back-mark" id="back-mark"></span></div>
       <div class="card front" id="card-front">
         <div class="card-head">
           <span class="chip" id="card-theme"></span>
           <span class="card-who" id="card-who"></span>
+          <button class="lang-mini" id="card-lang"></button>
         </div>
-        <p class="phrase" id="card-phrase"></p>
-        <p class="card-hint">Продолжи фразу вслух и расскажи, почему она тебе выпала.</p>
-        <p class="opt" id="scale-opt" hidden>Шкала по желанию</p>
-        <div class="scale" id="scale" role="radiogroup" aria-label="Насколько это про тебя">
-          <i class="thumb" id="thumb" aria-hidden="true"></i>
-          <button data-v="no" role="radio">Точно нет</button>
-          <button data-v="mid" role="radio">И да, и нет</button>
-          <button data-v="yes" role="radio">Точно да</button>
+        <p class="phrase" id="card-phrase" tabindex="-1"></p>
+        <p class="card-hint" id="card-hint"></p>
+        <div id="scale-wrap">
+          <p class="scale-q"><span id="scale-q"></span><em id="scale-opt"></em></p>
+          <div class="scale" id="scale" role="radiogroup">
+            <i class="thumb" id="thumb" aria-hidden="true"></i>
+            <button data-v="no" role="radio"></button>
+            <button data-v="mid" role="radio"></button>
+            <button data-v="yes" role="radio"></button>
+          </div>
         </div>
-        <textarea id="card-note" rows="2" maxlength="300" placeholder="Заметка Юли — по желанию"></textarea>
         <div class="card-actions">
-          <button class="pill ghost" id="btn-swap">Другая</button>
-          <button class="pill accent" id="btn-done" disabled>Дальше</button>
+          <button class="pill ghost" id="btn-swap"></button>
+          <button class="pill accent" id="btn-done"></button>
         </div>
+        <button class="link-btn dark" id="btn-pass"></button>
       </div>
+    </div>
+  </div>
+
+  <!-- Выбор темы -->
+  <div id="pick-layer" class="layer sheet-layer" hidden>
+    <div class="sheet set">
+      <p class="pick-title" id="pick-title"></p>
+      <div class="pick-list" id="pick-list"></div>
     </div>
   </div>
 
   <!-- Меню -->
   <div id="menu-layer" class="layer sheet-layer" hidden>
     <div class="sheet">
-      <button class="sheet-item" data-act="summary">Итоги игры</button>
-      <button class="sheet-item" data-act="skip">Пропустить ход</button>
-      <button class="sheet-item" data-act="players">Изменить участниц</button>
-      <button class="sheet-item" data-act="settings">Настройки</button>
-      <button class="sheet-item danger" data-act="new">Начать заново</button>
-      <button class="sheet-item muted" data-act="close">Закрыть</button>
+      <button class="sheet-item" data-act="summary"></button>
+      <button class="sheet-item" data-act="finish"></button>
+      <button class="sheet-item" data-act="skip"></button>
+      <button class="sheet-item" data-act="players"></button>
+      <button class="sheet-item" data-act="settings"></button>
+      <button class="sheet-item danger" data-act="new"></button>
+      <button class="sheet-item muted" data-act="close"></button>
     </div>
   </div>
 
   <!-- Настройки -->
   <div id="set-layer" class="layer sheet-layer" hidden>
     <div class="sheet set">
-      <p class="label" id="set-lang-l">Язык</p>
+      <p class="label">Язык / Language</p>
       <div class="seg" id="lang-seg"><button data-lang="ru">Русский</button><button data-lang="en">English</button></div>
-      <p class="label" id="set-skin-l">Оформление</p>
+      <p class="label" id="set-skin-l"></p>
       <div class="skins" id="skins"></div>
-      <p class="label" id="set-sound-l">Звук</p>
-      <div class="seg" id="sound-seg"><button data-s="1">Включён</button><button data-s="0">Выключен</button></div>
-      <button class="pill accent wide" id="set-done">Готово</button>
+      <p class="label" id="set-sound-l"></p>
+      <div class="seg" id="sound-seg"><button data-s="1"></button><button data-s="0"></button></div>
+      <p class="label" id="set-anim-l"></p>
+      <div class="seg" id="anim-seg"><button data-f="0"></button><button data-f="1"></button></div>
+      <button class="pill accent wide" id="set-done"></button>
+    </div>
+  </div>
+
+  <!-- Код ведущей -->
+  <div id="code-layer" class="layer" hidden>
+    <div class="dialog">
+      <h2 id="code-title"></h2>
+      <p class="muted" id="code-text"></p>
+      <input id="code-in" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="····">
+      <button class="pill accent wide" id="code-ok"></button>
+      <button class="pill ghost wide" id="code-alt"></button>
     </div>
   </div>
 
